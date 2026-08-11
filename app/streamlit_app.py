@@ -68,6 +68,19 @@ DARSTELLUNGEN = {
 }
 
 
+# Auswahl der Flächen. Der Entwicklungszustand ist der stärkste Treiber der
+# Bodenrichtwerte überhaupt -- Bauland und Ackerland liegen zwei Größen-
+# ordnungen auseinander. Die Analyse selbst läuft ausschließlich auf
+# Wohnbauland; die übrigen Optionen dienen der Einordnung.
+FLAECHENARTEN = {
+    "Wohnbauland (Grundlage der Analyse)": lambda d: d[
+        d["nutzung_gruppe"].eq("wohnen") & d["ist_bauland"]
+    ],
+    "Alles Bauland (inkl. gemischt und gewerblich)": lambda d: d[d["ist_bauland"]],
+    "Alle Zonen (auch Acker, Wald, Sonderflächen)": lambda d: d,
+}
+
+
 def _stand(pfad: Path) -> float:
     """Änderungszeitpunkt als Cache-Schlüssel.
 
@@ -97,11 +110,16 @@ def lade_modelle(stand: float) -> dict:
 def _farbskala(werte: pd.Series, palette: str, einheit: str):
     """Stufenskala aus den Daten ableiten.
 
-    Quantile allein reichen nicht: beim Fluglärm tragen über drei Viertel der
-    Zonen denselben Ersatzwert, wodurch die Klassengrenzen zusammenfallen.
-    Deshalb werden Grenzen erst entdoppelt und notfalls linear aufgespannt.
+    Zwei Eigenheiten der Daten machen das nötig. Erstens tragen beim Fluglärm
+    über drei Viertel der Zonen denselben Ersatzwert, wodurch Quantilgrenzen
+    zusammenfallen. Zweitens gibt es bei den Wertänderungen einzelne
+    Ausreißer -- landwirtschaftliche Flächen springen prozentual stark, weil
+    ihr Ausgangswert bei unter einem Euro liegt. Die Skala wird deshalb auf
+    das 2.-98. Perzentil gestutzt, sonst läge die ganze Karte in einer Farbe.
     """
     endlich = werte.dropna()
+    untere, obere = np.percentile(endlich, [2, 98])
+    endlich = endlich.clip(untere, obere)
     grenzen = sorted({round(float(v), 2) for v in np.quantile(endlich, np.linspace(0, 1, 8))})
 
     if len(grenzen) < 4:
@@ -124,7 +142,9 @@ def _farbskala(werte: pd.Series, palette: str, einheit: str):
     )
 
 
-def zeichne_karte(gdf: gpd.GeoDataFrame, spalte: str, palette: str, einheit: str) -> folium.Map:
+def zeichne_karte(
+    gdf: gpd.GeoDataFrame, spalte: str, palette: str, einheit: str, titel: str
+) -> folium.Map:
     m = folium.Map(location=FRA, zoom_start=11, tiles="CartoDB positron")
     Fullscreen().add_to(m)
 
@@ -132,7 +152,7 @@ def zeichne_karte(gdf: gpd.GeoDataFrame, spalte: str, palette: str, einheit: str
     if daten.empty:
         return m
 
-    skala = _farbskala(daten[spalte], palette, einheit)
+    skala = _farbskala(daten[spalte], palette, f"{titel} in {einheit}")
 
     def stil(feature):
         wert = feature["properties"].get(spalte)
@@ -144,11 +164,13 @@ def zeichne_karte(gdf: gpd.GeoDataFrame, spalte: str, palette: str, einheit: str
         }
 
     tooltip_felder = ["gemeinde", "gemarkung", spalte]
-    aliase = ["Gemeinde", "Gemarkung", f"Wert ({einheit})"]
+    aliase = ["Gemeinde:", "Gemarkung:", f"{titel} ({einheit}):"]
     for extra, alias in (
-        ("bodenrichtwert_2024", "Bodenrichtwert 2024 (€/m²)"),
-        ("flug_tag_2024", "Fluglärm Tag (dB(A))"),
-        ("klasse", "Lärmklasse"),
+        ("nutzungsklasse", "Nutzung:"),
+        ("bodenrichtwert_2024", "Bodenrichtwert 01.01.2024 (€/m²):"),
+        ("bodenrichtwert_2026", "Bodenrichtwert 01.01.2026 (€/m²):"),
+        ("flug_tag_2024", "Fluglärm Tag (dB(A)):"),
+        ("brw_veraenderung_pct", "Wertänderung 2024→2026 (%):"),
     ):
         if extra in daten.columns and extra != spalte:
             tooltip_felder.append(extra)
@@ -215,18 +237,23 @@ with st.sidebar:
     auswahl = st.radio("Was soll eingefärbt werden?", list(DARSTELLUNGEN), index=0)
     konfig = DARSTELLUNGEN[auswahl]
 
-    nur_wohnen = st.checkbox("Nur Wohnbauland zeigen", value=True)
+    flaechenart = st.selectbox(
+        "Welche Flächen?",
+        list(FLAECHENARTEN),
+        index=0,
+        help=(
+            "Bodenrichtwerte hängen vor allem am Entwicklungszustand: "
+            "Bauland kostet dreistellig je m², Ackerland unter 10 €. Ein "
+            "gemeinsamer Blick auf beides sagt wenig über Fluglärm aus."
+        ),
+    )
     gemeinden = sorted(karte["gemeinde"].dropna().unique())
     filter_gemeinde = st.multiselect("Auf Gemeinden eingrenzen", gemeinden)
 
     st.divider()
     st.caption(konfig["erklaerung"])
 
-gefiltert = karte
-if nur_wohnen:
-    gefiltert = gefiltert[
-        gefiltert["nutzung_gruppe"].eq("wohnen") & gefiltert["ist_bauland"]
-    ]
+gefiltert = FLAECHENARTEN[flaechenart](karte)
 if filter_gemeinde:
     gefiltert = gefiltert[gefiltert["gemeinde"].isin(filter_gemeinde)]
 
@@ -235,6 +262,34 @@ tab_karte, tab_modelle, tab_wandel, tab_daten = st.tabs(
 )
 
 with tab_karte:
+    with st.expander("Wie lese ich diese Karte?"):
+        st.markdown(
+            """
+**Die Flächen** sind amtliche Bodenrichtwertzonen — Gebiete, für die der
+Gutachterausschuss einen einheitlichen Bodenwert festlegt. Sie folgen der
+Bebauungsstruktur, sind also kein gleichmäßiges Raster: In der Innenstadt
+liegen viele kleine Zonen nebeneinander, am Rand einzelne große.
+
+**Die vier Ansichten** zeigen jeweils eine andere Größe:
+
+| Ansicht | Farbe bedeutet | Skala |
+|---|---|---|
+| Fluglärm | Dauerschallpegel tagsüber | hell = leise, dunkelrot = laut |
+| Bodenrichtwert | Preis je m² Grundstück | hell = günstig, dunkelblau = teuer |
+| Geschätzter Lärmeffekt | Modellergebnis je Lärmklasse | rot = Wertabschlag, grün = kein Abschlag |
+| Wertentwicklung | Preisänderung 2024 → 2026 | rot = gefallen, grün = gestiegen |
+
+**Wichtig:** Nur die Ansicht „Geschätzter Lärmeffekt" zeigt ein
+Regressionsergebnis. Die anderen drei zeigen Rohdaten — dort ist Dunkelrot
+nicht „durch Lärm verursacht", sondern einfach „hier ist es laut" bzw. „hier
+ist es teuer".
+
+**Die gestrichelten Linien** sind die Fluglärmkonturen bei 50, 55, 60 und
+65 dB(A). Sie helfen beim Abgleich: Liegt eine dunkle Zone innerhalb der
+Konturen oder nur zufällig daneben?
+"""
+        )
+
     spalte = konfig["spalte"]
     if spalte not in gefiltert.columns:
         st.warning(f"Für diese Darstellung fehlen noch Daten ({spalte}).")
@@ -245,21 +300,39 @@ with tab_karte:
         k2.metric("davon mit Wert", f"{verfuegbar:,}".replace(",", "."))
         if "bodenrichtwert_2024" in gefiltert:
             k3.metric(
-                "Median Bodenrichtwert",
+                "Median Bodenrichtwert 2024",
                 f"{gefiltert['bodenrichtwert_2024'].median():,.0f} €/m²".replace(",", "."),
             )
         belastet = gefiltert["flug_tag_2024"].notna().sum() if "flug_tag_2024" in gefiltert else 0
         k4.metric("Zonen in Lärmkonturen", f"{belastet:,}".replace(",", "."))
 
-        karte_obj = zeichne_karte(gefiltert, spalte, konfig["palette"], konfig["einheit"])
+        karte_obj = zeichne_karte(
+            gefiltert, spalte, konfig["palette"], konfig["einheit"], auswahl
+        )
         # get_root().render() liefert das fertige HTML-Dokument. Über
         # _repr_html_() käme die Notebook-Fassung mit einem zweiten,
         # verschachtelten iframe.
         st_html(karte_obj.get_root().render(), height=620, scrolling=False)
         st.caption(
-            "Gestrichelte Linien: Fluglärmkonturen 50/55/60/65 dB(A) des jüngsten "
-            "verfügbaren Jahrgangs. Zonen ohne Wert bleiben ungefärbt."
+            "Jede Fläche ist eine amtliche Bodenrichtwertzone. Mit dem Mauszeiger "
+            "über eine Zone fahren zeigt alle Kennzahlen dazu. Gestrichelte Linien "
+            "sind die Fluglärmkonturen 50/55/60/65 dB(A); der graue Marker ist der "
+            "Flughafen. Die Farbskala ist auf das 2.–98. Perzentil gestutzt, damit "
+            "einzelne Ausreißer die Abstufung nicht schlucken. Zonen ohne Wert "
+            "bleiben ungefärbt."
         )
+
+        if spalte == "brw_veraenderung_pct":
+            st.info(
+                "**Zur Prozentangabe:** Sie zeigt, um wie viel Prozent sich der "
+                "Bodenrichtwert je m² zwischen dem 01.01.2024 und dem 01.01.2026 "
+                "verändert hat — nicht den Preis selbst. Bei Wohnbauland liegt die "
+                "Spanne zwischen −33 % und +55 %, der Median bei 0 %. Große "
+                "Prozentwerte findest du fast nur außerhalb des Baulands: Wenn "
+                "Ackerland von 0,85 € auf 7,70 € je m² neu bewertet wird, sind das "
+                "über 800 % — bei kaum ins Gewicht fallenden Beträgen. Deshalb ist "
+                "die Voreinstellung „Wohnbauland\"."
+            )
 
 with tab_modelle:
     st.subheader("Wie stark hängen Bodenwerte am Fluglärm?")

@@ -151,11 +151,20 @@ den Start der App genügen die im Repo enthaltenen aufbereiteten Dateien.
   Schnittmenge der IDs von 2022 und 2024 ist leer. Verfolgt wird deshalb der
   Ort: Referenz sind die Zonen von 2024, für jeden anderen Stichtag wird der
   Wert der Zone übernommen, die den Repräsentativpunkt enthält.
-* **Abgleich der Nutzungsart bei jedem Stichtag.** Verschieben sich Zonen-
+* **Abgleich der Nutzungsklasse bei jedem Stichtag.** Verschieben sich Zonen-
   grenzen, kann ein Punkt, der 2024 in einer Wohnbauzone lag, 2026 in einer
   Landwirtschaftsfläche liegen. Ohne Prüfung entstehen daraus Scheinänderungen
   von mehreren tausend Prozent (Ackerland zu 0,70 €/m² gegen Bauland zu
-  350 €/m²). Solche Treffer werden verworfen — je Stichtag rund 110 von 2.044.
+  350 €/m²). Verglichen wird deshalb nur innerhalb derselben Klasse —
+  Wohnbauland, gemischtes Bauland, gewerbliches Bauland, Bauerwartungsland,
+  Rohbauland, Land-/Forstwirtschaft, sonstige Fläche.
+* **Wertzuordnung nach der Nutzungsart der Zone, nicht nach der Höhe.** Die
+  WMS-Auskunft liefert für manche Zonen mehrere Werte in einem Feld
+  (`"forstwirtschaftliche Fläche: 0,75 EUR/m²;Wohnbaufläche: 280 EUR/m²"`).
+  Maßgeblich ist der Eintrag, der zur ausgewiesenen Nutzungsart der Zone
+  passt. Greift man stattdessen pauschal den Wohnbauwert ab, bekommt eine
+  Waldfläche den Bauplatzpreis — im Datensatz waren das 310 von 5.367 Zonen
+  mit Scheinänderungen bis über 30.000 %.
 * **Lärm aus dem Vorjahr.** Der Bodenrichtwert zum 01.01.2024 spiegelt das
   Marktgeschehen von 2023, ihm werden deshalb die 2023er Konturen zugeordnet.
 * **Uneinheitliche Nutzungsschlüssel.** Frankfurt und Darmstadt verschlüsseln

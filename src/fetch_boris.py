@@ -113,13 +113,41 @@ def _normalise_dtypes(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 _BRW_PATTERN = re.compile(r"(?:([^:;]+):\s*)?([\d.,]+)\s*EUR/m")
 
 
+# Grobe Nutzungsklassen, um Bezeichnungen aus BRW-Feld und NUTA_KLART
+# aufeinander abzubilden ("Wohnbaufläche" vs. "reines Wohngebiet").
+_KLASSEN_MUSTER = (
+    ("forst", "forst"),
+    ("landwirt", "landwirt"),
+    ("wohn", "wohn"),
+    ("gemischt", "gemischt"),
+    ("misch", "gemischt"),
+    ("kerngebiet", "gemischt"),
+    ("dorfgebiet", "gemischt"),
+    ("gewerb", "gewerbe"),
+    ("industrie", "gewerbe"),
+    ("gemeinbedarf", "gemeinbedarf"),
+)
+
+
+def _grobklasse(text: str) -> str | None:
+    t = text.lower()
+    for muster, klasse in _KLASSEN_MUSTER:
+        if muster in t:
+            return klasse
+    return None
+
+
 def parse_brw(brw_roh: str, nutzung_txt: str | None = None) -> float | None:
     """Bodenrichtwert aus dem BRW-Feld der WMS-Auskunft lesen.
 
     Das Feld kommt in zwei Formen: Zonen mit nur einem Wert liefern schlicht
     "380 EUR/m²", Zonen mit mehreren Nutzungen dagegen eine Liste der Form
-    "Wohnbaufläche: 290 EUR/m²;landwirtschaftliche Fläche: 6,50 EUR/m²".
-    Bei mehreren Werten wird der Wohnbauwert bevorzugt.
+    "forstwirtschaftliche Fläche: 0,75 EUR/m²;Wohnbaufläche: 280 EUR/m²".
+
+    Bei mehreren Werten entscheidet die Nutzungsart der Zone selbst
+    (NUTA_KLART), nicht die Höhe des Werts. Greift man stattdessen pauschal
+    den Wohnbauwert ab, bekommt eine Waldfläche den Bauplatzpreis zugewiesen
+    -- im Datensatz führte das zu Scheinänderungen von über 30.000 %.
     """
     if not brw_roh:
         return None
@@ -127,7 +155,7 @@ def parse_brw(brw_roh: str, nutzung_txt: str | None = None) -> float | None:
     werte: list[tuple[str | None, float]] = []
     for art, zahl in _BRW_PATTERN.findall(brw_roh):
         try:
-            werte.append((art.strip().lower() if art else None,
+            werte.append((art.strip() if art else None,
                           float(zahl.replace(".", "").replace(",", "."))))
         except ValueError:
             continue
@@ -136,12 +164,25 @@ def parse_brw(brw_roh: str, nutzung_txt: str | None = None) -> float | None:
         return None
     if len(werte) == 1:
         return werte[0][1]
+    if not nutzung_txt:
+        return werte[0][1]
 
-    for art, wert in werte:
-        if art and "wohn" in art:
+    ziel = nutzung_txt.strip().lower()
+    beschriftet = [(a.lower(), w) for a, w in werte if a]
+
+    for art, wert in beschriftet:
+        if art == ziel:
             return wert
-    if nutzung_txt and "wohn" in nutzung_txt.lower():
-        return max(w for _, w in werte)
+    for art, wert in beschriftet:
+        if art in ziel or ziel.startswith(art):
+            return wert
+
+    ziel_klasse = _grobklasse(ziel)
+    if ziel_klasse:
+        for art, wert in beschriftet:
+            if _grobklasse(art) == ziel_klasse:
+                return wert
+
     return werte[0][1]
 
 

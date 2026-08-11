@@ -47,6 +47,40 @@ def _num(s: pd.Series) -> pd.Series:
     return pd.to_numeric(s, errors="coerce")
 
 
+def nutzungsklasse_codiert(art: pd.Series, entwicklung: pd.Series) -> pd.Series:
+    """Grobe Nutzungsklasse aus den BORIS-Schlüsseln (Stichtage bis 2024)."""
+    klasse = pd.Series("bauland_sonstige", index=art.index, dtype=object)
+    klasse = klasse.mask(art.isin(NUTZUNG_WOHNEN), "bauland_wohnen")
+    klasse = klasse.mask(art.isin(NUTZUNG_GEMISCHT), "bauland_gemischt")
+    # Nicht-Bauland nach Entwicklungszustand trennen: Ackerland und Wald
+    # liegen bei unter 1 EUR/m², Bauerwartungsland dagegen im dreistelligen
+    # Bereich. Ein Vergleich über diese Grenze hinweg ergibt keinen Sinn.
+    return klasse.mask(entwicklung.ne("B"), "nichtbauland_" + entwicklung.astype(str))
+
+
+def nutzungsklasse_text(nutzung: pd.Series, entwicklung: pd.Series) -> pd.Series:
+    """Dieselbe Klassifikation aus den Klartextfeldern der WMS-Auskunft (2026)."""
+    entw = entwicklung.fillna("")
+    nutz = nutzung.fillna("").str.lower()
+
+    zustand = pd.Series("nichtbauland_?", index=entw.index, dtype=object)
+    for muster, code in (
+        ("Land- und Forst", "nichtbauland_LF"),
+        ("Sonstige", "nichtbauland_SF"),
+        ("Bauerwartung", "nichtbauland_E"),
+        ("Rohbauland", "nichtbauland_R"),
+    ):
+        zustand = zustand.mask(entw.str.contains(muster, regex=False), code)
+
+    bauland = pd.Series("bauland_sonstige", index=entw.index, dtype=object)
+    bauland = bauland.mask(
+        nutz.str.contains("gemischt|misch|kerngebiet|dorfgebiet"), "bauland_gemischt"
+    )
+    bauland = bauland.mask(nutz.str.contains("wohn"), "bauland_wohnen")
+
+    return bauland.where(entw.eq("Baureifes Land"), zustand)
+
+
 def load_reference_zones() -> gpd.GeoDataFrame:
     """Zonen des Stichtags 2024 als Referenzgeometrie."""
     g = gpd.read_parquet(DATA_RAW / "boris_2024.parquet").to_crs(CRS_METRIC)
@@ -90,19 +124,15 @@ def brw_at_points(year: int, points: gpd.GeoSeries) -> pd.DataFrame:
     """
     if year == 2026:
         df = gpd.read_parquet(DATA_RAW / "boris_2026.parquet")
-        out = pd.DataFrame(
+        return pd.DataFrame(
             {
                 "bodenrichtwert": df["bodenrichtwert"].values,
-                "ist_bauland": df["entwicklungszustand_txt"].eq("Baureifes Land").values,
-                "ist_wohnen": df["nutzung_txt"]
-                .fillna("")
-                .str.lower()
-                .str.contains("wohn")
-                .values,
+                "klasse": nutzungsklasse_text(
+                    df["nutzung_txt"], df["entwicklungszustand_txt"]
+                ).values,
             },
             index=df["gml_id_2024"].values,
         )
-        return out
 
     zones = gpd.read_parquet(DATA_RAW / f"boris_{year}.parquet").to_crs(CRS_METRIC)
     zones = zones[["bodenrichtwert", "art", "entwicklungszustand", "geometry"]].copy()
@@ -115,8 +145,9 @@ def brw_at_points(year: int, points: gpd.GeoSeries) -> pd.DataFrame:
         return pd.DataFrame(
             {
                 "bodenrichtwert": zones["bodenrichtwert"].values,
-                "ist_bauland": zones["entwicklungszustand"].eq("B").values,
-                "ist_wohnen": zones["art"].isin(NUTZUNG_WOHNEN).values,
+                "klasse": nutzungsklasse_codiert(
+                    zones["art"], zones["entwicklungszustand"]
+                ).values,
             }
         )
 
@@ -127,8 +158,9 @@ def brw_at_points(year: int, points: gpd.GeoSeries) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "bodenrichtwert": joined["bodenrichtwert"].values,
-            "ist_bauland": joined["entwicklungszustand"].eq("B").values,
-            "ist_wohnen": joined["art"].isin(NUTZUNG_WOHNEN).values,
+            "klasse": nutzungsklasse_codiert(
+                joined["art"], joined["entwicklungszustand"]
+            ).values,
         }
     )
 
@@ -165,7 +197,8 @@ def main() -> None:
     print(f"Stichtage im Panel: {stichtage}")
 
     # Nutzungsklasse der Referenzzonen, gegen die abgeglichen wird
-    ref_wohnbauland = ref["art"].isin(NUTZUNG_WOHNEN) & ref["entwicklungszustand"].eq("B")
+    ref_klasse = nutzungsklasse_codiert(ref["art"], ref["entwicklungszustand"])
+    ref["nutzungsklasse"] = ref_klasse.values
 
     frames = []
     for year in stichtage:
@@ -176,13 +209,12 @@ def main() -> None:
 
         werte = pd.to_numeric(treffer["bodenrichtwert"], errors="coerce")
 
-        # Verwerfen, wenn der getroffene Zuschnitt eine andere Nutzung hat als
-        # die Referenzzone -- sonst vergleicht das Panel Äpfel mit Birnen.
-        passend = ~(
-            ref_wohnbauland.values
-            & ~(treffer["ist_bauland"].fillna(False) & treffer["ist_wohnen"].fillna(False))
-        )
-        verworfen = int((~passend & ref_wohnbauland.values).sum())
+        # Verwerfen, wenn der getroffene Zuschnitt eine andere Nutzungsklasse
+        # hat als die Referenzzone. Ohne diese Prüfung für ALLE Zonentypen
+        # entstehen Scheinänderungen von mehreren zehntausend Prozent: eine
+        # Waldfläche zu 0,85 EUR/m² trifft 2026 auf Bauland zu 280 EUR/m².
+        passend = treffer["klasse"].values == ref_klasse.values
+        verworfen = int((~passend).sum())
         werte = werte.where(passend)
 
         frame = pd.DataFrame(
