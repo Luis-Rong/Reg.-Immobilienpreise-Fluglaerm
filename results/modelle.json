@@ -1,0 +1,151 @@
+{
+  "A": {
+    "name": "A",
+    "beschreibung": "Querschnitt 2024: Lärmklassen gegenüber Zonen unter 48 dB(A), mit Distanz-, Straßenlärm-, Raumtrend- und Gemeinde-Kontrollen",
+    "n": 2044,
+    "r2": 0.4687,
+    "koeffizienten": [
+      {
+        "term": "48-50",
+        "koeffizient": 0.26298,
+        "effekt_bodenwert_prozent": 30.08,
+        "ki_unten": -13.31,
+        "ki_oben": 95.19,
+        "std_fehler": 0.20706,
+        "p_wert": 0.2041,
+        "signifikant_5pct": false,
+        "effekt_immobilie_prozent": [
+          9.02,
+          15.04
+        ]
+      },
+      {
+        "term": "50-55",
+        "koeffizient": -0.29019,
+        "effekt_bodenwert_prozent": -25.19,
+        "ki_unten": -39.71,
+        "ki_oben": -7.16,
+        "std_fehler": 0.11015,
+        "p_wert": 0.0084,
+        "signifikant_5pct": true,
+        "effekt_immobilie_prozent": [
+          -7.56,
+          -12.59
+        ]
+      },
+      {
+        "term": "55 und mehr",
+        "koeffizient": -0.30506,
+        "effekt_bodenwert_prozent": -26.29,
+        "ki_unten": -62.23,
+        "ki_oben": 43.84,
+        "std_fehler": 0.34113,
+        "p_wert": 0.3712,
+        "signifikant_5pct": false,
+        "effekt_immobilie_prozent": [
+          -7.89,
+          -13.15
+        ]
+      }
+    ]
+  },
+  "A2": {
+    "name": "A2",
+    "beschreibung": "Querschnitt 2024: stetiger Effekt je dB(A) Tagespegel",
+    "n": 2044,
+    "r2": 0.4652,
+    "koeffizienten": [
+      {
+        "term": "flug_tag_gefuellt",
+        "koeffizient": -0.0308,
+        "effekt_bodenwert_prozent": -3.03,
+        "ki_unten": -5.88,
+        "ki_oben": -0.1,
+        "std_fehler": 0.01523,
+        "p_wert": 0.0431,
+        "signifikant_5pct": true,
+        "effekt_immobilie_prozent": [
+          -0.91,
+          -1.52
+        ]
+      }
+    ]
+  },
+  "B": {
+    "name": "B",
+    "beschreibung": "Panel 2020-2024 mit Zonen- und Stichtags-Fixen-Effekten; identifiziert wird nur aus Zonen, deren Pegel sich über die Zeit ändert",
+    "n": 6132,
+    "r2": 0.1348,
+    "zonen": 2044,
+    "zonen_mit_laermvariation": 410,
+    "koeffizienten": [
+      {
+        "term": "flug_tag_gefuellt_w",
+        "koeffizient": -0.00499,
+        "effekt_bodenwert_prozent": -0.5,
+        "ki_unten": -1.95,
+        "ki_oben": 0.97,
+        "std_fehler": 0.00748,
+        "p_wert": 0.5048,
+        "signifikant_5pct": false,
+        "effekt_immobilie_prozent": [
+          -0.15,
+          -0.25
+        ]
+      }
+    ]
+  },
+  "spezifikationsvergleich": [
+    {
+      "spezifikation": "ohne Kontrollen",
+      "n": 2044,
+      "r2": 0.0047,
+      "effekt_je_db_prozent": -3.33,
+      "p_wert": 0.1022
+    },
+    {
+      "spezifikation": "Distanzen",
+      "n": 2044,
+      "r2": 0.2281,
+      "effekt_je_db_prozent": -8.08,
+      "p_wert": 0.0
+    },
+    {
+      "spezifikation": "+ Umfeld (Industrie/Grün)",
+      "n": 2044,
+      "r2": 0.2655,
+      "effekt_je_db_prozent": -6.73,
+      "p_wert": 0.0
+    },
+    {
+      "spezifikation": "+ Raumtrend",
+      "n": 2044,
+      "r2": 0.3604,
+      "effekt_je_db_prozent": -2.95,
+      "p_wert": 0.0411
+    },
+    {
+      "spezifikation": "+ Gemeinde-FE",
+      "n": 2044,
+      "r2": 0.4588,
+      "effekt_je_db_prozent": -2.67,
+      "p_wert": 0.1154
+    },
+    {
+      "spezifikation": "vollständig",
+      "n": 2044,
+      "r2": 0.4652,
+      "effekt_je_db_prozent": -3.03,
+      "p_wert": 0.0431
+    }
+  ],
+  "hinweise": {
+    "zielgroesse": "Bodenrichtwert (reiner Bodenwert, EUR/m²)",
+    "bodenwertanteil_annahme": [
+      0.3,
+      0.5
+    ],
+    "referenzklasse": "unter 48",
+    "laermmass": "LAeq Tag (06-22 Uhr), Isophonen des Umwelt- und Nachbarschaftshauses"
+  }
+}

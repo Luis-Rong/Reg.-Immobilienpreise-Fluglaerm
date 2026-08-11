@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+
+# Rohdaten werden per Skript reproduziert und sind zu groß fürs Repo.
+data/raw/
+
+# Aufbereitete Daten: die Kartendatei bleibt drin, damit die App ohne
+# vorherigen Datenabruf startet.
+data/processed/*
+!data/processed/karte.parquet
+!data/processed/konturen_karte.parquet
