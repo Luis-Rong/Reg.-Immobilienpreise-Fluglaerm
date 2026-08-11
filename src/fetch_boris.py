@@ -110,7 +110,39 @@ def _normalise_dtypes(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 # --- 2026 über WMS-GetFeatureInfo ---------------------------------------
 
-_BRW_PATTERN = re.compile(r"([^:;]+):\s*([\d.,]+)\s*EUR/m")
+_BRW_PATTERN = re.compile(r"(?:([^:;]+):\s*)?([\d.,]+)\s*EUR/m")
+
+
+def parse_brw(brw_roh: str, nutzung_txt: str | None = None) -> float | None:
+    """Bodenrichtwert aus dem BRW-Feld der WMS-Auskunft lesen.
+
+    Das Feld kommt in zwei Formen: Zonen mit nur einem Wert liefern schlicht
+    "380 EUR/m²", Zonen mit mehreren Nutzungen dagegen eine Liste der Form
+    "Wohnbaufläche: 290 EUR/m²;landwirtschaftliche Fläche: 6,50 EUR/m²".
+    Bei mehreren Werten wird der Wohnbauwert bevorzugt.
+    """
+    if not brw_roh:
+        return None
+
+    werte: list[tuple[str | None, float]] = []
+    for art, zahl in _BRW_PATTERN.findall(brw_roh):
+        try:
+            werte.append((art.strip().lower() if art else None,
+                          float(zahl.replace(".", "").replace(",", "."))))
+        except ValueError:
+            continue
+
+    if not werte:
+        return None
+    if len(werte) == 1:
+        return werte[0][1]
+
+    for art, wert in werte:
+        if art and "wohn" in art:
+            return wert
+    if nutzung_txt and "wohn" in nutzung_txt.lower():
+        return max(w for _, w in werte)
+    return werte[0][1]
 
 
 def _parse_gml_info(text: str) -> dict | None:
@@ -123,15 +155,7 @@ def _parse_gml_info(text: str) -> dict | None:
         return m.group(1).strip() if m else None
 
     brw_raw = tag("BRW") or ""
-    # "Wohnbaufläche: 290 EUR/m²;landwirtschaftliche Fläche: 6,50 EUR/m²"
-    werte = {
-        art.strip().lower(): float(val.replace(".", "").replace(",", "."))
-        for art, val in _BRW_PATTERN.findall(brw_raw)
-    }
-    wohn = next(
-        (v for k, v in werte.items() if "wohn" in k),
-        next(iter(werte.values()), None) if len(werte) == 1 else None,
-    )
+    wohn = parse_brw(brw_raw, tag("NUTA_KLART"))
 
     return {
         "gemeinde_name": tag("GENA"),

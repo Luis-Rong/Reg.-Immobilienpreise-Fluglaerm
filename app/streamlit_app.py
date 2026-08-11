@@ -59,23 +59,38 @@ DARSTELLUNGEN = {
         "spalte": "brw_veraenderung_pct",
         "einheit": "%",
         "palette": "RdYlGn",
-        "erklaerung": "Veränderung des Bodenrichtwerts zwischen den letzten beiden Stichtagen.",
+        "erklaerung": (
+            "Veränderung des Bodenrichtwerts zwischen den beiden jüngsten "
+            "Stichtagen (01.01.2024 → 01.01.2026). Dieser Zeitraum umfasst die "
+            "ersten sechs Monate der geänderten Abflugroute „Cindy S\"."
+        ),
     },
 }
 
 
+def _stand(pfad: Path) -> float:
+    """Änderungszeitpunkt als Cache-Schlüssel.
+
+    Ohne ihn liefert der Cache nach einem erneuten Modelllauf weiterhin die
+    alten Ergebnisse, bis der Server neu startet. Der Parameter darf in den
+    Ladefunktionen keinen Unterstrich-Präfix tragen -- solche Argumente nimmt
+    Streamlit vom Hashen aus, womit der Schlüssel wirkungslos wäre.
+    """
+    return pfad.stat().st_mtime
+
+
 @st.cache_data
-def lade_karte() -> gpd.GeoDataFrame:
+def lade_karte(stand: float) -> gpd.GeoDataFrame:
     return gpd.read_parquet(DATA / "karte.parquet")
 
 
 @st.cache_data
-def lade_konturen() -> gpd.GeoDataFrame:
+def lade_konturen(stand: float) -> gpd.GeoDataFrame:
     return gpd.read_parquet(DATA / "konturen_karte.parquet")
 
 
 @st.cache_data
-def lade_modelle() -> dict:
+def lade_modelle(stand: float) -> dict:
     return json.loads((RESULTS / "modelle.json").read_text(encoding="utf-8"))
 
 
@@ -148,7 +163,7 @@ def zeichne_karte(gdf: gpd.GeoDataFrame, spalte: str, palette: str, einheit: str
     ).add_to(m)
     skala.add_to(m)
 
-    konturen = lade_konturen()
+    konturen = lade_konturen(_stand(DATA / "konturen_karte.parquet"))
     farben = {50: "#3182bd", 55: "#f0a30a", 60: "#e6550d", 65: "#a50f15"}
     for _, zeile in konturen.iterrows():
         folium.GeoJson(
@@ -186,8 +201,8 @@ def koeffiziententabelle(modell: dict) -> pd.DataFrame:
 
 
 # --------------------------------------------------------------------------
-karte = lade_karte()
-modelle = lade_modelle()
+karte = lade_karte(_stand(DATA / "karte.parquet"))
+modelle = lade_modelle(_stand(RESULTS / "modelle.json"))
 
 st.title("✈️ Fluglärm und Immobilienwerte rund um den Frankfurter Flughafen")
 st.caption(
