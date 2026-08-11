@@ -107,6 +107,16 @@ def lade_modelle(stand: float) -> dict:
     return json.loads((RESULTS / "modelle.json").read_text(encoding="utf-8"))
 
 
+@st.cache_data
+def lade_greix(stand: float) -> dict:
+    return json.loads((RESULTS / "greix_referenz.json").read_text(encoding="utf-8"))
+
+
+@st.cache_data
+def lade_greix_reihe(stand: float) -> pd.DataFrame:
+    return pd.read_parquet(ROOT / "data" / "raw" / "greix_staedte.parquet")
+
+
 def _farbskala(werte: pd.Series, palette: str, einheit: str):
     """Stufenskala aus den Daten ableiten.
 
@@ -257,8 +267,14 @@ gefiltert = FLAECHENARTEN[flaechenart](karte)
 if filter_gemeinde:
     gefiltert = gefiltert[gefiltert["gemeinde"].isin(filter_gemeinde)]
 
-tab_karte, tab_modelle, tab_wandel, tab_daten = st.tabs(
-    ["Karte", "Regressionsergebnisse", "Routenänderungen", "Daten & Grenzen"]
+tab_karte, tab_modelle, tab_wandel, tab_referenz, tab_daten = st.tabs(
+    [
+        "Karte",
+        "Regressionsergebnisse",
+        "Routenänderungen",
+        "Referenz: echte Kaufpreise",
+        "Daten & Grenzen",
+    ]
 )
 
 with tab_karte:
@@ -422,6 +438,93 @@ with tab_wandel:
         "Der nächste Stichtag 01.01.2028 ist der erste, der einen "
         "Ankündigungseffekt zeigen könnte. Das Projekt ist so gebaut, dass die "
         "Auswertung dann per Skript wiederholbar ist."
+    )
+
+with tab_referenz:
+    greix = lade_greix(_stand(RESULTS / "greix_referenz.json"))
+    reihe = lade_greix_reihe(_stand(ROOT / "data" / "raw" / "greix_staedte.parquet"))
+
+    st.subheader("Halten die Bodenwerte, was echte Kaufpreise sagen?")
+    st.markdown(
+        "Der **GREIX** des Kiel Instituts beruht auf notariell beurkundeten "
+        "Kaufpreisen — also auf tatsächlich gezahlten Beträgen, quartalsweise "
+        "und ungeglättet. Damit lässt sich prüfen, ob die Bodenrichtwerte das "
+        "Marktgeschehen überhaupt abbilden."
+    )
+
+    ffm = pd.DataFrame(greix["frankfurt"]["perioden"])
+    if not ffm.empty:
+        anzeige = ffm.rename(
+            columns={
+                "zeitraum": "Stichtage",
+                "marktjahre": "Marktjahre",
+                "bodenrichtwert_wachstum_pct": "Bodenrichtwert (%)",
+                "kaufpreis_wachstum_pct": "Kaufpreis (%)",
+                "differenz_pp": "Differenz (pp)",
+            }
+        )
+        st.dataframe(anzeige, use_container_width=True, hide_index=True)
+
+    st.error(
+        "**Der wichtigste Befund dieses Vergleichs:** Die Bodenrichtwerte "
+        "hinken dem Markt um rund einen Zyklus hinterher. Den Preiseinbruch "
+        "von 2023 — real gut 17 % — haben sie zum Stichtag 2024 schlicht nicht "
+        "abgebildet; sie gaben erst zum Stichtag 2026 nach, als die "
+        "Kaufpreise längst wieder stiegen. Für die Frage nach „Cindy S\" heißt "
+        "das: Eine Routenänderung vom Juli 2025 kann im Stichtag 01.01.2026 "
+        "praktisch nicht enthalten sein. Das ist keine Vermutung mehr, sondern "
+        "an dieser Gegenüberstellung ablesbar."
+    )
+
+    st.markdown("#### Kaufpreisentwicklung Frankfurt")
+    ffm_reihe = reihe[reihe["stadt"].str.contains("Frankfurt", na=False)]
+    verlauf = (
+        ffm_reihe.pivot_table(
+            index="jahr", columns="objekttyp", values="preis_eur_qm", aggfunc="mean"
+        )
+    )
+    st.line_chart(verlauf, height=280)
+    st.caption(
+        "Mittlerer Kaufpreis je m² Wohnfläche. Der Gipfel 2022, der Einbruch "
+        "2023 und die Erholung ab 2024 sind hier unmittelbar sichtbar — in den "
+        "Bodenrichtwerten sind sie es nicht."
+    )
+
+    st.markdown("#### Frankfurter Stadtviertel nach Lage zur Einflugschneise")
+    gruppen = pd.DataFrame(greix["viertel_gegen_laerm"]["gruppen"])
+    g_anzeige = gruppen.rename(
+        columns={
+            "lage": "Lage",
+            "viertel_anzahl": "Viertel",
+            "preis_mittel": "Ø Kaufpreis (€/m²)",
+            "kauffaelle": "Kauffälle",
+            "abstand_zu_abseits_pct": "Abstand zu „abseits\" (%)",
+        }
+    )
+    st.dataframe(g_anzeige, use_container_width=True, hide_index=True)
+
+    einzel = pd.DataFrame(greix["viertel_gegen_laerm"]["viertel"]).rename(
+        columns={
+            "viertel": "Viertel",
+            "preis_eur_qm": "Kaufpreis (€/m²)",
+            "veraenderung_pct": "Veränderung (%)",
+            "kauffaelle": "Kauffälle",
+            "lage": "Lage",
+        }
+    )
+    with st.expander("Einzelne Viertel anzeigen"):
+        st.dataframe(einzel, use_container_width=True, hide_index=True)
+
+    st.warning(
+        "**Vorsicht bei der Deutung:** Dieser Vergleich ist ein reiner "
+        "Rohvergleich ohne Kontrollvariablen. Die Viertel in der "
+        "Einflugschneise — der Frankfurter Westen und Süden — sind zugleich "
+        "die industriell geprägten und zentrumsferneren Lagen. Die 21 % "
+        "Preisabstand sind deshalb eine Obergrenze und nicht der Lärmeffekt "
+        "selbst. Genau deshalb rechnet der Regressions-Tab mit "
+        "Lagekontrollen — und kommt dort auf einen kleineren Wert. Was dieser "
+        "Vergleich leistet: Er zeigt die Richtung unabhängig von den "
+        "Bodenrichtwerten, an echten Kaufverträgen."
     )
 
 with tab_daten:

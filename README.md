@@ -65,6 +65,43 @@ sondern ökonomisch plausibel: Eine erkennbar vorübergehende Lärmpause
 kapitalisiert sich nicht in dauerhaften Bodenwerten. Der Querschnitt misst den
 langfristig eingepreisten Zustand, das Panel die kurzfristige Reaktion.
 
+## Gegenprobe an echten Kaufpreisen (GREIX)
+
+Der [GREIX](https://greix.de) des Kiel Instituts beruht auf notariell
+beurkundeten Kaufpreisen, erscheint quartalsweise und ist ungeglättet. Er
+dient hier als unabhängige Referenz — und liefert zwei Befunde, die die
+Hauptanalyse einordnen.
+
+**Bodenrichtwerte hinken dem Markt um rund einen Zyklus hinterher.**
+
+| Stichtage | Bodenrichtwert | Kaufpreis (GREIX) | Differenz |
+|---|---|---|---|
+| 2020 → 2022 | +21,8 % | +18,7 % | +3,2 pp |
+| 2022 → 2024 | ±0,0 % | **−17,6 %** | +17,6 pp |
+| 2024 → 2026 | −8,3 % | **+7,2 %** | −15,6 pp |
+
+Den Preiseinbruch von 2023 haben die Bodenrichtwerte zum Stichtag 2024 nicht
+abgebildet; sie gaben erst 2026 nach, als die Kaufpreise längst wieder
+stiegen. Für die Routenänderung heißt das: Ein Ereignis vom Juli 2025 kann im
+Stichtag 01.01.2026 praktisch nicht enthalten sein. Das ist damit keine
+Vermutung mehr, sondern belegt.
+
+**Der Lärmgradient zeigt sich auch in echten Kaufverträgen.** Die neun
+Frankfurter GREIX-Stadtviertel, gruppiert nach ihrer Lage zur
+Ost-West-Anfluggrundlinie:
+
+| Lage | Viertel | Ø Kaufpreis | Abstand |
+|---|---|---|---|
+| abseits | 5 | 6.040 €/m² | — |
+| randlich betroffen | 2 | 5.100 €/m² | −15,6 % |
+| in der Einflugschneise | 2 | 4.750 €/m² | −21,4 % |
+
+Wichtig: Das ist ein **Rohvergleich ohne Kontrollvariablen**. Die betroffenen
+Viertel (Frankfurter Westen und Süden) sind zugleich industriell geprägt und
+zentrumsferner. Die 21 % sind deshalb eine Obergrenze, nicht der Lärmeffekt.
+Der Wert dieser Gegenprobe liegt darin, dass sie die Richtung unabhängig von
+den Bodenrichtwerten und an tatsächlich gezahlten Preisen bestätigt.
+
 ## Haben die Routenänderungen etwas verändert?
 
 **Modell C — „Cindy S", seit 10.07.2025 im einjährigen Probebetrieb.**
@@ -93,6 +130,7 @@ gar nicht enthalten sein. Das Modell dient als Ausgangsmessung; der Stichtag
 | Fluglärmkonturen | Umwelt- und Nachbarschaftshaus | ArcGIS FeatureServer | Jahreswerte 2013–2024 |
 | Straßen-, Schienen-, Industrielärm | HLNUG, EU-Umgebungslärmkartierung | ArcGIS MapServer (Raster) | 2022 |
 | Lagefaktoren, Flächennutzung | OpenStreetMap | Overpass API | laufend |
+| Kaufpreise (Gegenprobe) | GREIX, Kiel Institut | REST-API `api.greixx.net` | Quartalswerte 2010–2026 |
 
 Drei Fundstücke, die das Projekt erst möglich gemacht haben:
 
@@ -118,8 +156,10 @@ src/
   fetch_contours.py   Jährliche Fluglärm-Isophonen des UNH
   fetch_noise.py      EU-Umgebungslärmkartierung (Straße, Schiene, Industrie)
   fetch_controls.py   OSM: Distanzen, Industrie- und Grünflächenanteile
+  fetch_greix.py      GREIX-Kaufpreise (Städte und Frankfurter Viertel)
   build_dataset.py    Räumliche Verknüpfung zum Standort-Panel
   models.py           Hedonische Regressionen A, A2, B, C, D
+  greix_referenz.py   Bodenrichtwerte gegen echte Kaufpreise halten
   viz_prep.py         Kartendaten vereinfachen und exportieren
 app/
   streamlit_app.py    Interaktive Karte, Ergebnistabellen, Limitationen
@@ -132,7 +172,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 ```
 
 ```bash
-cd src && python fetch_boris.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python build_dataset.py && python models.py && python viz_prep.py
+cd src && python fetch_boris.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python fetch_greix.py && python build_dataset.py && python models.py && python greix_referenz.py && python viz_prep.py
 ```
 
 ```bash

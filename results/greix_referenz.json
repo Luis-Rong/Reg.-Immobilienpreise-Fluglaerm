@@ -1,0 +1,152 @@
+{
+  "beschreibung": "GREIX-Kaufpreise (notariell beurkundet, EUR je m² Wohnfläche) als unabhängige Referenz zu den Bodenrichtwerten",
+  "frankfurt": {
+    "gemeinde": "Frankfurt am Main",
+    "greix_stadt": "Frankfurt",
+    "perioden": [
+      {
+        "zeitraum": "2020 → 2022",
+        "marktjahre": "2019 → 2021",
+        "bodenrichtwert_wachstum_pct": 21.8,
+        "kaufpreis_wachstum_pct": 18.7,
+        "differenz_pp": 3.2
+      },
+      {
+        "zeitraum": "2022 → 2024",
+        "marktjahre": "2021 → 2023",
+        "bodenrichtwert_wachstum_pct": 0.0,
+        "kaufpreis_wachstum_pct": -17.6,
+        "differenz_pp": 17.6
+      },
+      {
+        "zeitraum": "2024 → 2026",
+        "marktjahre": "2023 → 2025",
+        "bodenrichtwert_wachstum_pct": -8.3,
+        "kaufpreis_wachstum_pct": 7.2,
+        "differenz_pp": -15.6
+      }
+    ]
+  },
+  "wiesbaden": {
+    "gemeinde": "Wiesbaden",
+    "greix_stadt": "Wiesbaden",
+    "perioden": [
+      {
+        "zeitraum": "2020 → 2022",
+        "marktjahre": "2019 → 2021",
+        "bodenrichtwert_wachstum_pct": 21.2,
+        "kaufpreis_wachstum_pct": 26.2,
+        "differenz_pp": -5.0
+      },
+      {
+        "zeitraum": "2022 → 2024",
+        "marktjahre": "2021 → 2023",
+        "bodenrichtwert_wachstum_pct": 0.0,
+        "kaufpreis_wachstum_pct": -12.8,
+        "differenz_pp": 12.8
+      },
+      {
+        "zeitraum": "2024 → 2026",
+        "marktjahre": "2023 → 2025",
+        "bodenrichtwert_wachstum_pct": -5.0,
+        "kaufpreis_wachstum_pct": 0.6,
+        "differenz_pp": -5.6
+      }
+    ]
+  },
+  "viertel_gegen_laerm": {
+    "gruppen": [
+      {
+        "lage": "abseits",
+        "viertel_anzahl": 5,
+        "preis_mittel": 6040.0,
+        "kauffaelle": 1371,
+        "abstand_zu_abseits_pct": 0.0
+      },
+      {
+        "lage": "in der Einflugschneise",
+        "viertel_anzahl": 2,
+        "preis_mittel": 4750.0,
+        "kauffaelle": 579,
+        "abstand_zu_abseits_pct": -21.4
+      },
+      {
+        "lage": "randlich betroffen",
+        "viertel_anzahl": 2,
+        "preis_mittel": 5100.0,
+        "kauffaelle": 336,
+        "abstand_zu_abseits_pct": -15.6
+      }
+    ],
+    "viertel": [
+      {
+        "viertel": "Westend/Innenstadt",
+        "preis_eur_qm": 7300.0,
+        "veraenderung_pct": 4.414131376583219,
+        "kauffaelle": 321,
+        "lage": "abseits"
+      },
+      {
+        "viertel": "Mitte-West",
+        "preis_eur_qm": 7000.0,
+        "veraenderung_pct": 0.726639395450257,
+        "kauffaelle": 583,
+        "lage": "abseits"
+      },
+      {
+        "viertel": "Bornheim-Ostend",
+        "preis_eur_qm": 5900.0,
+        "veraenderung_pct": 2.623119055776524,
+        "kauffaelle": 155,
+        "lage": "abseits"
+      },
+      {
+        "viertel": "Osten",
+        "preis_eur_qm": 5500.0,
+        "veraenderung_pct": 0.4594011903374273,
+        "kauffaelle": 171,
+        "lage": "randlich betroffen"
+      },
+      {
+        "viertel": "Süden",
+        "preis_eur_qm": 5500.0,
+        "veraenderung_pct": 1.3072585905581358,
+        "kauffaelle": 350,
+        "lage": "in der Einflugschneise"
+      },
+      {
+        "viertel": "Norden",
+        "preis_eur_qm": 5100.0,
+        "veraenderung_pct": 6.41791061761261,
+        "kauffaelle": 134,
+        "lage": "abseits"
+      },
+      {
+        "viertel": "Mitte-Nord",
+        "preis_eur_qm": 4900.0,
+        "veraenderung_pct": -1.791420778859587,
+        "kauffaelle": 178,
+        "lage": "abseits"
+      },
+      {
+        "viertel": "Nord-West",
+        "preis_eur_qm": 4700.0,
+        "veraenderung_pct": -5.15828524467018,
+        "kauffaelle": 165,
+        "lage": "randlich betroffen"
+      },
+      {
+        "viertel": "West-Autobahn",
+        "preis_eur_qm": 4000.0,
+        "veraenderung_pct": 7.624360968492749,
+        "kauffaelle": 229,
+        "lage": "in der Einflugschneise"
+      }
+    ]
+  },
+  "marktkontext_2024_2026": {
+    "quartale": 8,
+    "kauffaelle_gesamt": 5586,
+    "mittlere_quartalsveraenderung_pct": 3.77
+  }
+}
