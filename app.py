@@ -367,9 +367,12 @@ def spezifikationstabelle() -> pd.DataFrame:
 def greix_verlauf() -> pd.DataFrame:
     ffm = GREIX_REIHE[GREIX_REIHE["stadt"].str.contains("Frankfurt", na=False)]
     verlauf = ffm.groupby(["jahr", "objekttyp"])["preis_eur_qm"].mean().reset_index()
+    # Jahr als Text, sonst beschriftet Gradio die Achse mit Tausendertrennung
+    # und Nachkommastelle ("2.010,0").
+    verlauf["jahr"] = verlauf["jahr"].astype(int).astype(str)
     return verlauf.rename(
         columns={"jahr": "Jahr", "objekttyp": "Objekttyp", "preis_eur_qm": "€/m²"}
-    )
+    ).round({"€/m²": 0})
 
 
 # --- Texte -----------------------------------------------------------------
