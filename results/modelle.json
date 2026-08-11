@@ -3,48 +3,48 @@
     "name": "A",
     "beschreibung": "Querschnitt 2024: Lärmklassen gegenüber Zonen unter 48 dB(A), mit Distanz-, Straßenlärm-, Raumtrend- und Gemeinde-Kontrollen",
     "n": 2044,
-    "r2": 0.7309,
+    "r2": 0.764,
     "koeffizienten": [
       {
         "term": "48-50",
-        "koeffizient": -0.00954,
-        "effekt_bodenwert_prozent": -0.95,
-        "ki_unten": -8.97,
-        "ki_oben": 7.78,
-        "std_fehler": 0.0431,
-        "p_wert": 0.8249,
+        "koeffizient": -0.02021,
+        "effekt_bodenwert_prozent": -2.0,
+        "ki_unten": -8.72,
+        "ki_oben": 5.21,
+        "std_fehler": 0.03622,
+        "p_wert": 0.5769,
         "signifikant_5pct": false,
         "effekt_immobilie_prozent": [
-          -0.28,
-          -0.47
+          -0.6,
+          -1.0
         ]
       },
       {
         "term": "50-55",
-        "koeffizient": -0.21154,
-        "effekt_bodenwert_prozent": -19.07,
-        "ki_unten": -31.97,
-        "ki_oben": -3.71,
-        "std_fehler": 0.08865,
-        "p_wert": 0.017,
+        "koeffizient": -0.16688,
+        "effekt_bodenwert_prozent": -15.37,
+        "ki_unten": -26.1,
+        "ki_oben": -3.09,
+        "std_fehler": 0.06915,
+        "p_wert": 0.0158,
         "signifikant_5pct": true,
         "effekt_immobilie_prozent": [
-          -5.72,
-          -9.53
+          -4.61,
+          -7.69
         ]
       },
       {
         "term": "55 und mehr",
-        "koeffizient": -0.23823,
-        "effekt_bodenwert_prozent": -21.2,
-        "ki_unten": -30.56,
-        "ki_oben": -10.57,
-        "std_fehler": 0.06456,
-        "p_wert": 0.0002,
+        "koeffizient": -0.22464,
+        "effekt_bodenwert_prozent": -20.12,
+        "ki_unten": -29.18,
+        "ki_oben": -9.91,
+        "std_fehler": 0.06139,
+        "p_wert": 0.0003,
         "signifikant_5pct": true,
         "effekt_immobilie_prozent": [
-          -6.36,
-          -10.6
+          -6.04,
+          -10.06
         ]
       }
     ]
@@ -53,27 +53,27 @@
     "name": "A2",
     "beschreibung": "Querschnitt 2024: stetiger Effekt je dB(A) Tagespegel",
     "n": 2044,
-    "r2": 0.7294,
+    "r2": 0.7634,
     "koeffizienten": [
       {
         "term": "flug_tag_gefuellt",
-        "koeffizient": -0.02381,
-        "effekt_bodenwert_prozent": -2.35,
-        "ki_unten": -3.86,
-        "ki_oben": -0.82,
-        "std_fehler": 0.00793,
-        "p_wert": 0.0027,
+        "koeffizient": -0.02005,
+        "effekt_bodenwert_prozent": -1.98,
+        "ki_unten": -3.17,
+        "ki_oben": -0.78,
+        "std_fehler": 0.00622,
+        "p_wert": 0.0013,
         "signifikant_5pct": true,
         "effekt_immobilie_prozent": [
-          -0.71,
-          -1.18
+          -0.6,
+          -0.99
         ]
       }
     ]
   },
   "B": {
     "name": "B",
-    "beschreibung": "Panel 2020-2024 mit Zonen- und Stichtags-Fixen-Effekten; identifiziert wird nur aus Zonen, deren Pegel sich über die Zeit ändert",
+    "beschreibung": "Panel 2020-2026 mit Zonen- und Stichtags-Fixen-Effekten; identifiziert wird nur aus Zonen, deren Pegel sich über die Zeit ändert",
     "n": 7584,
     "r2": 0.368,
     "zonen": 1896,
@@ -92,6 +92,133 @@
           -0.01,
           -0.01
         ]
+      }
+    ]
+  },
+  "N": {
+    "name": "N",
+    "beschreibung": "Querschnitt 2024: Nachtlärmklassen (LAeq 22-6 Uhr) gegenüber Zonen unter 43 dB(A), gleiche Kontrollen wie Modell A",
+    "n": 2044,
+    "r2": 0.7629,
+    "koeffizienten": [
+      {
+        "term": "43-45",
+        "koeffizient": -0.14758,
+        "effekt_bodenwert_prozent": -13.72,
+        "ki_unten": -23.91,
+        "ki_oben": -2.17,
+        "std_fehler": 0.06409,
+        "p_wert": 0.0213,
+        "signifikant_5pct": true,
+        "effekt_immobilie_prozent": [
+          -4.12,
+          -6.86
+        ]
+      },
+      {
+        "term": "45-48",
+        "koeffizient": -0.15324,
+        "effekt_bodenwert_prozent": -14.21,
+        "ki_unten": -23.06,
+        "ki_oben": -4.34,
+        "std_fehler": 0.05553,
+        "p_wert": 0.0058,
+        "signifikant_5pct": true,
+        "effekt_immobilie_prozent": [
+          -4.26,
+          -7.1
+        ]
+      },
+      {
+        "term": "48 und mehr",
+        "koeffizient": -0.19994,
+        "effekt_bodenwert_prozent": -18.12,
+        "ki_unten": -29.11,
+        "ki_oben": -5.43,
+        "std_fehler": 0.07354,
+        "p_wert": 0.0065,
+        "signifikant_5pct": true,
+        "effekt_immobilie_prozent": [
+          -5.44,
+          -9.06
+        ]
+      }
+    ]
+  },
+  "N2": {
+    "name": "N2",
+    "beschreibung": "Querschnitt 2024: stetiger Effekt je dB(A) Nachtpegel",
+    "n": 2044,
+    "r2": 0.7628,
+    "koeffizienten": [
+      {
+        "term": "flug_nacht_gefuellt",
+        "koeffizient": -0.024,
+        "effekt_bodenwert_prozent": -2.37,
+        "ki_unten": -3.92,
+        "ki_oben": -0.8,
+        "std_fehler": 0.00815,
+        "p_wert": 0.0033,
+        "signifikant_5pct": true,
+        "effekt_immobilie_prozent": [
+          -0.71,
+          -1.19
+        ]
+      }
+    ]
+  },
+  "TN": {
+    "name": "TN",
+    "beschreibung": "Querschnitt 2024: Tages- und Nachtpegel gemeinsam",
+    "n": 2044,
+    "r2": 0.7636,
+    "korrelation_tag_nacht": 0.847,
+    "koeffizienten": [
+      {
+        "term": "flug_tag_gefuellt",
+        "koeffizient": -0.01495,
+        "effekt_bodenwert_prozent": -1.48,
+        "ki_unten": -2.95,
+        "ki_oben": 0.01,
+        "std_fehler": 0.00767,
+        "p_wert": 0.0513,
+        "signifikant_5pct": false,
+        "effekt_immobilie_prozent": [
+          -0.45,
+          -0.74
+        ]
+      },
+      {
+        "term": "flug_nacht_gefuellt",
+        "koeffizient": -0.0086,
+        "effekt_bodenwert_prozent": -0.86,
+        "ki_unten": -1.84,
+        "ki_oben": 0.13,
+        "std_fehler": 0.00507,
+        "p_wert": 0.0901,
+        "signifikant_5pct": false,
+        "effekt_immobilie_prozent": [
+          -0.26,
+          -0.43
+        ]
+      }
+    ]
+  },
+  "M": {
+    "name": "M",
+    "beschreibung": "Alternative Zielgröße: örtliche Nettokaltmiete je m² (Zensus 2022), gleiche Kontrollen wie Modell A2",
+    "n": 1993,
+    "r2": 0.5427,
+    "koeffizienten": [
+      {
+        "term": "flug_tag_gefuellt",
+        "koeffizient": -0.00025,
+        "ki_unten": -0.52,
+        "ki_oben": 0.47,
+        "std_fehler": 0.00255,
+        "p_wert": 0.921,
+        "signifikant_5pct": false,
+        "effekt_miete_prozent": -0.03
       }
     ]
   },
@@ -125,18 +252,18 @@
       "p_wert": 0.0
     },
     {
-      "spezifikation": "+ Gemeinde-FE",
+      "spezifikation": "+ Sozialstruktur",
       "n": 2044,
-      "r2": 0.7152,
-      "effekt_je_db_prozent": -2.15,
-      "p_wert": 0.0031
+      "r2": 0.6621,
+      "effekt_je_db_prozent": -2.39,
+      "p_wert": 0.0002
     },
     {
-      "spezifikation": "vollständig",
+      "spezifikation": "+ Gemeinde-FE (vollständig)",
       "n": 2044,
-      "r2": 0.7294,
-      "effekt_je_db_prozent": -2.35,
-      "p_wert": 0.0027
+      "r2": 0.7634,
+      "effekt_je_db_prozent": -1.98,
+      "p_wert": 0.0013
     }
   ],
   "C": {

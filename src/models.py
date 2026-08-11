@@ -33,6 +33,9 @@ from config import (
     BETRIEBSKONZEPT_TREATMENT_GEMEINDEN,
     CINDY_S_TREATMENT_GEMEINDEN,
     DATA_PROCESSED,
+    LNIGHT_BINS,
+    LNIGHT_LABELS,
+    LNIGHT_REFERENZ,
     RESULTS,
 )
 
@@ -51,7 +54,16 @@ BODENWERTANTEIL = (0.30, 0.50)
 DISTANZEN = "dist_bahn_km + dist_autobahn_km + dist_zentrum_km + dist_flughafen_km"
 UMFELD = "anteil_industrie_1km + anteil_gruen_1km"
 RAUMTREND = "x0 + y0 + I(x0**2) + I(y0**2) + x0:y0"
-VOLL = f"{DISTANZEN} + strasse_g + {UMFELD} + {RAUMTREND}"
+
+# Sozialstruktur aus dem Zensus 2022. Die Nettokaltmiete fehlt hier bewusst:
+# Sie ist selbst ein Preis und reagiert auf Lärm -- als Kontrolle würde sie
+# genau den Effekt aufsaugen, der gemessen werden soll.
+SOZIALSTRUKTUR = (
+    "log_einwohner + durchschnittsalter + eigentuemerquote + anteil_auslaender "
+    "+ flaeche_je_wohnung + anteil_altbau_vor1949"
+)
+
+VOLL = f"{DISTANZEN} + strasse_g + {UMFELD} + {RAUMTREND} + {SOZIALSTRUKTUR}"
 
 
 def lade_daten() -> pd.DataFrame:
@@ -71,8 +83,25 @@ def lade_daten() -> pd.DataFrame:
     df["strasse_g"] = df["strasse_lden"].fillna(39.0)
     df["x0"] = df["x"] - df["x"].mean()
     df["y0"] = df["y"] - df["y"].mean()
+
+    # Zensus-Merkmale: fehlende Werte am Median auffüllen, damit die
+    # Stichprobe nicht schrumpft. Betroffen sind vor allem Randlagen, für die
+    # das Statistische Bundesamt aus Geheimhaltungsgründen nichts ausweist.
+    df["log_einwohner"] = np.log1p(df["einwohner_je_km2"].fillna(0))
+    for spalte in (
+        "durchschnittsalter", "eigentuemerquote", "anteil_auslaender",
+        "flaeche_je_wohnung", "anteil_altbau_vor1949",
+    ):
+        if spalte in df.columns:
+            df[spalte] = df[spalte].fillna(df[spalte].median())
     df["klasse"] = pd.cut(
         df["flug_tag_gefuellt"], bins=MODELL_BINS, labels=MODELL_LABELS, right=False
+    ).astype(str)
+    df["klasse_nacht"] = pd.cut(
+        df["flug_nacht_gefuellt"],
+        bins=LNIGHT_BINS,
+        labels=LNIGHT_LABELS,
+        right=False,
     ).astype(str)
     return df
 
@@ -146,6 +175,112 @@ def modell_a2(df: pd.DataFrame) -> dict:
     }
 
 
+def modell_nacht(df: pd.DataFrame) -> dict:
+    """Nachtpegel statt Tagespegel.
+
+    Nachtlärm gilt in der Lärmwirkungsforschung als der schädlichere Teil der
+    Belastung. Die Konturen beginnen bei 43 dB(A) und reichen wegen des
+    Frankfurter Nachtflugverbots weniger weit ins Umland.
+    """
+    d = df[df["stichtag"] == 2024].copy()
+    formel = (
+        f"log_brw ~ C(klasse_nacht, Treatment(reference='{LNIGHT_REFERENZ}')) "
+        f"+ {VOLL} + C(gemeinde)"
+    )
+    m = _fit(formel, d)
+    terme = [t for t in m.params.index if "klasse_nacht" in t]
+    res = {
+        "name": "N",
+        "beschreibung": (
+            "Querschnitt 2024: Nachtlärmklassen (LAeq 22-6 Uhr) gegenüber Zonen "
+            "unter 43 dB(A), gleiche Kontrollen wie Modell A"
+        ),
+        "n": int(m.nobs),
+        "r2": round(float(m.rsquared), 4),
+        "koeffizienten": _koeffizienten(m, terme),
+    }
+    res["koeffizienten"] = [
+        {**k, "term": k["term"].replace(
+            f"C(klasse_nacht, Treatment(reference='{LNIGHT_REFERENZ}'))[T.", ""
+        ).rstrip("]")}
+        for k in res["koeffizienten"]
+    ]
+    return res
+
+
+def modell_nacht_stetig(df: pd.DataFrame) -> dict:
+    d = df[df["stichtag"] == 2024].copy()
+    m = _fit(f"log_brw ~ flug_nacht_gefuellt + {VOLL} + C(gemeinde)", d)
+    return {
+        "name": "N2",
+        "beschreibung": "Querschnitt 2024: stetiger Effekt je dB(A) Nachtpegel",
+        "n": int(m.nobs),
+        "r2": round(float(m.rsquared), 4),
+        "koeffizienten": _koeffizienten(m, ["flug_nacht_gefuellt"]),
+    }
+
+
+def modell_tag_und_nacht(df: pd.DataFrame) -> dict:
+    """Beide Pegel zugleich -- welcher trägt die Erklärung?
+
+    Tag- und Nachtpegel sind räumlich hoch korreliert; das Modell trennt sie
+    nur begrenzt. Es zeigt aber, ob einer der beiden für sich genommen
+    aussagekräftiger ist.
+    """
+    d = df[df["stichtag"] == 2024].copy()
+    m = _fit(
+        f"log_brw ~ flug_tag_gefuellt + flug_nacht_gefuellt + {VOLL} + C(gemeinde)", d
+    )
+    korr = d[["flug_tag_gefuellt", "flug_nacht_gefuellt"]].corr().iloc[0, 1]
+    res = {
+        "name": "TN",
+        "beschreibung": "Querschnitt 2024: Tages- und Nachtpegel gemeinsam",
+        "n": int(m.nobs),
+        "r2": round(float(m.rsquared), 4),
+        "korrelation_tag_nacht": round(float(korr), 3),
+        "koeffizienten": _koeffizienten(
+            m, ["flug_tag_gefuellt", "flug_nacht_gefuellt"]
+        ),
+    }
+    return res
+
+
+def modell_miete(df: pd.DataFrame) -> dict | None:
+    """Alternative Zielgröße: die örtliche Nettokaltmiete.
+
+    Ein von den Bodenrichtwerten völlig unabhängiger Preis, erhoben im Zensus
+    2022. Wenn Fluglärm eingepreist wird, sollte er sich auch hier zeigen --
+    allerdings gedämpfter, weil die Miete auf das Gebäude bezogen ist und
+    nicht auf den Boden.
+    """
+    if "miete_eur_qm" not in df.columns:
+        return None
+
+    d = df[(df["stichtag"] == 2024) & df["miete_eur_qm"].notna()].copy()
+    if len(d) < 100:
+        return None
+
+    d["log_miete"] = np.log(d["miete_eur_qm"])
+    m = _fit(f"log_miete ~ flug_tag_gefuellt + {VOLL} + C(gemeinde)", d)
+
+    koef = _koeffizienten(m, ["flug_tag_gefuellt"])
+    for k in koef:
+        # Die Umrechnung auf den Immobilienwert gilt nur für Bodenwerte.
+        k.pop("effekt_immobilie_prozent", None)
+        k["effekt_miete_prozent"] = k.pop("effekt_bodenwert_prozent")
+
+    return {
+        "name": "M",
+        "beschreibung": (
+            "Alternative Zielgröße: örtliche Nettokaltmiete je m² (Zensus 2022), "
+            "gleiche Kontrollen wie Modell A2"
+        ),
+        "n": int(m.nobs),
+        "r2": round(float(m.rsquared), 4),
+        "koeffizienten": koef,
+    }
+
+
 def spezifikationsvergleich(df: pd.DataFrame) -> list[dict]:
     """Wie stabil ist der Effekt über verschiedene Kontrollsätze?"""
     d = df[df["stichtag"] == 2024].copy()
@@ -154,8 +289,11 @@ def spezifikationsvergleich(df: pd.DataFrame) -> list[dict]:
         "Distanzen": f"log_brw ~ flug_tag_gefuellt + {DISTANZEN} + strasse_g",
         "+ Umfeld (Industrie/Grün)": f"log_brw ~ flug_tag_gefuellt + {DISTANZEN} + strasse_g + {UMFELD}",
         "+ Raumtrend": f"log_brw ~ flug_tag_gefuellt + {DISTANZEN} + strasse_g + {UMFELD} + {RAUMTREND}",
-        "+ Gemeinde-FE": f"log_brw ~ flug_tag_gefuellt + {DISTANZEN} + strasse_g + {UMFELD} + C(gemeinde)",
-        "vollständig": f"log_brw ~ flug_tag_gefuellt + {VOLL} + C(gemeinde)",
+        "+ Sozialstruktur": (
+            f"log_brw ~ flug_tag_gefuellt + {DISTANZEN} + strasse_g + {UMFELD} "
+            f"+ {RAUMTREND} + {SOZIALSTRUKTUR}"
+        ),
+        "+ Gemeinde-FE (vollständig)": f"log_brw ~ flug_tag_gefuellt + {VOLL} + C(gemeinde)",
     }
     out = []
     for name, formel in varianten.items():
@@ -190,7 +328,7 @@ def modell_b(df: pd.DataFrame) -> dict:
     return {
         "name": "B",
         "beschreibung": (
-            "Panel 2020-2024 mit Zonen- und Stichtags-Fixen-Effekten; "
+            "Panel 2020-2026 mit Zonen- und Stichtags-Fixen-Effekten; "
             "identifiziert wird nur aus Zonen, deren Pegel sich über die Zeit ändert"
         ),
         "n": int(m.nobs),
@@ -278,6 +416,10 @@ def main() -> None:
         "A": res_a,
         "A2": modell_a2(df),
         "B": modell_b(df),
+        "N": modell_nacht(df),
+        "N2": modell_nacht_stetig(df),
+        "TN": modell_tag_und_nacht(df),
+        "M": modell_miete(df),
         "spezifikationsvergleich": spezifikationsvergleich(df),
     }
     for name, fn in (("C", modell_c), ("D", modell_d)):
@@ -299,15 +441,18 @@ def main() -> None:
     )
     zonen_effekte(df, fit_a, d24).to_parquet(RESULTS / "zonen_effekt.parquet")
 
-    for key in ("A", "A2", "B", "C", "D"):
+    for key in ("A", "A2", "B", "N", "N2", "TN", "M", "C", "D"):
         r = ergebnisse.get(key)
         if not r:
             continue
         print(f"\n--- Modell {key} (n={r['n']}, R²={r['r2']})")
         for k in r["koeffizienten"]:
             stern = "*" if k["signifikant_5pct"] else " "
+            # Modell M misst die Miete, nicht den Bodenwert
+            groesse = "Boden" if "effekt_bodenwert_prozent" in k else "Miete"
+            wert = k.get("effekt_bodenwert_prozent", k.get("effekt_miete_prozent"))
             print(
-                f"  {stern} {k['term'][:30]:30s} Boden {k['effekt_bodenwert_prozent']:+7.2f}% "
+                f"  {stern} {k['term'][:30]:30s} {groesse} {wert:+7.2f}% "
                 f"[{k['ki_unten']:+7.2f},{k['ki_oben']:+7.2f}]  p={k['p_wert']}"
             )
     print("\n--- Spezifikationsvergleich (Effekt je dB auf den Bodenwert)")

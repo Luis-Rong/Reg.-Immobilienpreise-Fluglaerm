@@ -11,8 +11,10 @@ import folium
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
 from folium.plugins import Fullscreen
+from shapely.geometry import Point
 from streamlit.components.v1 import html as st_html
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,22 +31,32 @@ st.set_page_config(
 
 FRA = (50.0333, 8.5706)
 
+NOMINATIM_AGENT = (
+    "Fluglaerm-Immobilien-Analyse/0.1 "
+    "(github.com/Luis-Rong/Reg.-Immobilienpreise-Fluglaerm)"
+)
+
+STICHTAGE = (2020, 2022, 2024, 2026)
+
+# "spalte" mit {jahr} folgt dem Zeitregler, feste Spalten ignorieren ihn.
 DARSTELLUNGEN = {
     "Fluglärm (Tagespegel)": {
-        "spalte": "flug_tag_gefuellt_2024",
+        "spalte": "flug_tag_gefuellt_{jahr}",
         "einheit": "dB(A)",
         "palette": "YlOrRd",
         "erklaerung": (
             "Dauerschallpegel tagsüber (6-22 Uhr) aus den Isophonenkarten des "
             "Umwelt- und Nachbarschaftshauses. Werte unter 48 dB(A) werden nicht "
-            "veröffentlicht und sind hier als 44 dargestellt."
+            "veröffentlicht und sind hier als 44 dargestellt. Der Zeitregler "
+            "zeigt, wie die Konturen im Verkehrseinbruch 2020/21 schrumpften "
+            "und danach wieder wuchsen."
         ),
     },
     "Bodenrichtwert": {
-        "spalte": "bodenrichtwert_2024",
+        "spalte": "bodenrichtwert_{jahr}",
         "einheit": "€/m²",
         "palette": "YlGnBu",
-        "erklaerung": "Amtlicher Bodenrichtwert zum Stichtag 01.01.2024 (BORIS Hessen).",
+        "erklaerung": "Amtlicher Bodenrichtwert zum gewählten Stichtag (BORIS Hessen).",
     },
     "Geschätzter Lärmeffekt": {
         "spalte": "effekt_prozent",
@@ -52,7 +64,8 @@ DARSTELLUNGEN = {
         "palette": "RdYlGn",
         "erklaerung": (
             "Modellbasierter Bodenwertunterschied gegenüber sonst vergleichbaren "
-            "Zonen unter 48 dB(A). Aus Modell A geschätzt, gilt je Lärmklasse."
+            "Zonen unter 48 dB(A). Aus Modell A geschätzt, gilt je Lärmklasse "
+            "und damit für alle Stichtage gleich."
         ),
     },
     "Wertentwicklung": {
@@ -153,9 +166,17 @@ def _farbskala(werte: pd.Series, palette: str, einheit: str):
 
 
 def zeichne_karte(
-    gdf: gpd.GeoDataFrame, spalte: str, palette: str, einheit: str, titel: str
+    gdf: gpd.GeoDataFrame,
+    spalte: str,
+    palette: str,
+    einheit: str,
+    titel: str,
+    fundstelle: tuple | None = None,
 ) -> folium.Map:
-    m = folium.Map(location=FRA, zoom_start=11, tiles="CartoDB positron")
+    mitte = (fundstelle[0], fundstelle[1]) if fundstelle else FRA
+    m = folium.Map(
+        location=mitte, zoom_start=14 if fundstelle else 11, tiles="CartoDB positron"
+    )
     Fullscreen().add_to(m)
 
     daten = gdf[gdf[spalte].notna()].copy()
@@ -211,24 +232,80 @@ def zeichne_karte(
     folium.Marker(
         FRA, tooltip="Flughafen Frankfurt", icon=folium.Icon(color="gray", icon="plane", prefix="fa")
     ).add_to(m)
+
+    if fundstelle:
+        lat, lon, bezeichnung, _zone = fundstelle
+        folium.Marker(
+            (lat, lon),
+            tooltip=bezeichnung,
+            icon=folium.Icon(color="red", icon="map-pin", prefix="fa"),
+        ).add_to(m)
     return m
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def geokodiere(adresse: str) -> tuple[float, float, str] | None:
+    """Adresse über Nominatim in Koordinaten übersetzen.
+
+    Die Nutzungsbedingungen von OpenStreetMap verlangen einen sprechenden
+    User-Agent und höchstens eine Anfrage je Sekunde; der Cache sorgt dafür,
+    dass wiederholte Eingaben den Dienst nicht erneut belasten.
+    """
+    try:
+        antwort = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={
+                "q": adresse,
+                "format": "json",
+                "limit": 1,
+                "countrycodes": "de",
+                "viewbox": "8.10,50.30,8.95,49.75",
+                "bounded": 0,
+            },
+            headers={"User-Agent": NOMINATIM_AGENT},
+            timeout=20,
+        )
+        antwort.raise_for_status()
+        treffer = antwort.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    if not treffer:
+        return None
+    t = treffer[0]
+    return float(t["lat"]), float(t["lon"]), t.get("display_name", adresse)
+
+
+def zone_an_punkt(gdf: gpd.GeoDataFrame, lat: float, lon: float):
+    """Diejenige Zone finden, die den Punkt enthält."""
+    punkt = Point(lon, lat)
+    treffer = gdf[gdf.geometry.contains(punkt)]
+    if treffer.empty:
+        # Randlage oder Lücke zwischen Zonen: nächstgelegene Zone nehmen
+        entfernung = gdf.geometry.distance(punkt)
+        if entfernung.empty or entfernung.min() > 0.01:  # ~1 km in Grad
+            return None
+        return gdf.loc[entfernung.idxmin()]
+    return treffer.iloc[0]
 
 
 def koeffiziententabelle(modell: dict) -> pd.DataFrame:
     zeilen = []
     for k in modell["koeffizienten"]:
-        sig = "ja" if k["signifikant_5pct"] else "nein"
-        immo = k["effekt_immobilie_prozent"]
-        zeilen.append(
-            {
-                "Merkmal": k["term"],
-                "Effekt auf Bodenwert": f"{k['effekt_bodenwert_prozent']:+.1f} %",
-                "95%-Konfidenzintervall": f"{k['ki_unten']:+.1f} bis {k['ki_oben']:+.1f} %",
-                "p-Wert": f"{k['p_wert']:.4f}",
-                "signifikant (5 %)": sig,
-                "≈ Effekt auf Immobilienwert": f"{immo[0]:+.1f} bis {immo[1]:+.1f} %",
-            }
-        )
+        # Modell M misst die Miete und kennt daher keine Bodenwert-Umrechnung
+        ist_boden = "effekt_bodenwert_prozent" in k
+        wert = k.get("effekt_bodenwert_prozent", k.get("effekt_miete_prozent"))
+        zeile = {
+            "Merkmal": k["term"],
+            f"Effekt auf {'Bodenwert' if ist_boden else 'Miete'}": f"{wert:+.1f} %",
+            "95%-Konfidenzintervall": f"{k['ki_unten']:+.1f} bis {k['ki_oben']:+.1f} %",
+            "p-Wert": f"{k['p_wert']:.4f}",
+            "signifikant (5 %)": "ja" if k["signifikant_5pct"] else "nein",
+        }
+        if ist_boden:
+            immo = k["effekt_immobilie_prozent"]
+            zeile["≈ Effekt auf Immobilienwert"] = f"{immo[0]:+.1f} bis {immo[1]:+.1f} %"
+        zeilen.append(zeile)
     return pd.DataFrame(zeilen)
 
 
@@ -246,6 +323,21 @@ with st.sidebar:
     st.header("Karte")
     auswahl = st.radio("Was soll eingefärbt werden?", list(DARSTELLUNGEN), index=0)
     konfig = DARSTELLUNGEN[auswahl]
+    zeitabhaengig = "{jahr}" in konfig["spalte"]
+
+    jahr = st.select_slider(
+        "Stichtag",
+        options=STICHTAGE,
+        value=2024,
+        disabled=not zeitabhaengig,
+        help=(
+            "Bodenrichtwerte gelten jeweils zum 01.01.; der Lärm stammt aus dem "
+            "Kalenderjahr davor. Für diese Darstellung ohne Wirkung."
+            if not zeitabhaengig
+            else "Bodenrichtwerte zum 01.01., Lärm aus dem Kalenderjahr davor."
+        ),
+    )
+    spalte = konfig["spalte"].format(jahr=jahr)
 
     flaechenart = st.selectbox(
         "Welche Flächen?",
@@ -259,6 +351,17 @@ with st.sidebar:
     )
     gemeinden = sorted(karte["gemeinde"].dropna().unique())
     filter_gemeinde = st.multiselect("Auf Gemeinden eingrenzen", gemeinden)
+
+    st.divider()
+    adresse = st.text_input(
+        "Adresse nachschlagen",
+        placeholder="z. B. Frankfurter Straße 1, Raunheim",
+        help=(
+            "Sucht die Bodenrichtwertzone zu einer Adresse und zeigt Lärmpegel, "
+            "Bodenwert und geschätzten Lärmeffekt. Geokodierung über Nominatim "
+            "(OpenStreetMap)."
+        ),
+    )
 
     st.divider()
     st.caption(konfig["erklaerung"])
@@ -306,7 +409,44 @@ Konturen oder nur zufällig daneben?
 """
         )
 
-    spalte = konfig["spalte"]
+    fundstelle = None
+    if adresse.strip():
+        ort = geokodiere(adresse.strip())
+        if ort is None:
+            st.warning(
+                f"Für „{adresse}\" wurde keine Koordinate gefunden. Hilfreich ist "
+                "meist die Form „Straße Hausnummer, Ort\"."
+            )
+        else:
+            lat, lon, bezeichnung = ort
+            zone = zone_an_punkt(karte, lat, lon)
+            if zone is None:
+                st.warning(
+                    f"„{bezeichnung}\" liegt außerhalb des Untersuchungsgebiets — "
+                    "abgedeckt ist der hessische Raum um den Flughafen."
+                )
+            else:
+                fundstelle = (lat, lon, bezeichnung, zone)
+                st.success(f"Gefunden: {bezeichnung}")
+                a1, a2, a3, a4 = st.columns(4)
+                pegel = zone.get(f"flug_tag_{jahr}")
+                a1.metric(
+                    f"Fluglärm tags ({jahr})",
+                    f"{pegel:.0f} dB(A)" if pd.notna(pegel) else "unter 48 dB(A)",
+                )
+                brw = zone.get(f"bodenrichtwert_{jahr}")
+                a2.metric(
+                    f"Bodenrichtwert {jahr}",
+                    f"{brw:,.0f} €/m²".replace(",", ".") if pd.notna(brw) else "—",
+                )
+                effekt = zone.get("effekt_prozent")
+                a3.metric(
+                    "Geschätzter Lärmeffekt",
+                    f"{effekt:+.1f} %" if pd.notna(effekt) else "—",
+                    help="Bodenwertunterschied gegenüber vergleichbaren Zonen unter 48 dB(A)",
+                )
+                a4.metric("Gemeinde", str(zone.get("gemeinde", "—")))
+
     if spalte not in gefiltert.columns:
         st.warning(f"Für diese Darstellung fehlen noch Daten ({spalte}).")
     else:
@@ -314,16 +454,21 @@ Konturen oder nur zufällig daneben?
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("Zonen in Auswahl", f"{len(gefiltert):,}".replace(",", "."))
         k2.metric("davon mit Wert", f"{verfuegbar:,}".replace(",", "."))
-        if "bodenrichtwert_2024" in gefiltert:
+        if f"bodenrichtwert_{jahr}" in gefiltert:
             k3.metric(
-                "Median Bodenrichtwert 2024",
-                f"{gefiltert['bodenrichtwert_2024'].median():,.0f} €/m²".replace(",", "."),
+                f"Median Bodenrichtwert {jahr}",
+                f"{gefiltert[f'bodenrichtwert_{jahr}'].median():,.0f} €/m²".replace(",", "."),
             )
-        belastet = gefiltert["flug_tag_2024"].notna().sum() if "flug_tag_2024" in gefiltert else 0
-        k4.metric("Zonen in Lärmkonturen", f"{belastet:,}".replace(",", "."))
+        laerm_spalte = f"flug_tag_{jahr}"
+        belastet = (
+            gefiltert[laerm_spalte].notna().sum() if laerm_spalte in gefiltert else 0
+        )
+        k4.metric(
+            f"Zonen in Lärmkonturen ({jahr})", f"{belastet:,}".replace(",", ".")
+        )
 
         karte_obj = zeichne_karte(
-            gefiltert, spalte, konfig["palette"], konfig["einheit"], auswahl
+            gefiltert, spalte, konfig["palette"], konfig["einheit"], auswahl, fundstelle
         )
         # get_root().render() liefert das fertige HTML-Dokument. Über
         # _repr_html_() käme die Notebook-Fassung mit einem zweiten,
@@ -383,6 +528,46 @@ with tab_modelle:
     vergleich = pd.DataFrame(modelle["spezifikationsvergleich"])
     vergleich.columns = ["Kontrollvariablen", "n", "R²", "Effekt je dB (%)", "p-Wert"]
     st.dataframe(vergleich, use_container_width=True, hide_index=True)
+
+    if "N" in modelle:
+        st.markdown("#### Nachtlärm: schädlicher, aber schwerer zu trennen")
+        n2 = modelle["N2"]["koeffizienten"][0]
+        st.caption(
+            modelle["N"]["beschreibung"]
+            + f"  ·  stetig: {n2['effekt_bodenwert_prozent']:+.2f} % je dB(A), p = {n2['p_wert']}"
+        )
+        st.dataframe(
+            koeffiziententabelle(modelle["N"]), use_container_width=True, hide_index=True
+        )
+        if "TN" in modelle:
+            korr = modelle["TN"].get("korrelation_tag_nacht")
+            st.info(
+                f"Je dB wirkt der Nachtpegel etwas stärker als der Tagespegel "
+                f"({n2['effekt_bodenwert_prozent']:+.2f} % gegenüber "
+                f"{modelle['A2']['koeffizienten'][0]['effekt_bodenwert_prozent']:+.2f} %) "
+                "— das passt zur Lärmwirkungsforschung, die Nachtlärm als den "
+                "schädlicheren Teil einstuft. Sauber trennen lassen sich beide "
+                f"allerdings nicht: Sie korrelieren mit {korr}. Nimmt man sie "
+                "gemeinsam ins Modell, verliert jeder für sich die Signifikanz."
+            )
+
+    if "M" in modelle:
+        st.markdown("#### Gegenprobe mit einer ganz anderen Zielgröße: der Miete")
+        m = modelle["M"]
+        st.caption(m["beschreibung"] + f"  ·  n = {m['n']}, R² = {m['r2']}")
+        koef = m["koeffizienten"][0]
+        st.metric(
+            "Effekt je dB(A) auf die Nettokaltmiete",
+            f"{koef['effekt_miete_prozent']:+.2f} %",
+            help=f"p = {koef['p_wert']}",
+        )
+        st.warning(
+            "Hier zeigt sich **kein** Effekt. Das ist kein Gegenbeweis, sondern "
+            "eine Frage der Auflösung: Die Zensus-Miete liegt nur im 1-km-Raster "
+            "vor, während der Fluglärm zonenscharf variiert. Innerhalb einer "
+            "Rasterzelle ist die Miete konstant, der Lärm aber nicht — das zieht "
+            "den Koeffizienten systematisch gegen null."
+        )
 
     st.markdown("#### Modell B: Panel mit Zonen-Fixe-Effekten")
     b = modelle["B"]

@@ -95,6 +95,13 @@ LDEN_REFERENZ = "unter 48"
 # Ersatzwert für Zonen außerhalb der niedrigsten Kontur
 PEGEL_UNTER_KONTUR = 44.0
 
+# Nachtpegel (LAeq 22-6 Uhr). Die Konturen beginnen bei 43 dB(A) und reichen
+# wegen des Nachtflugverbots in Frankfurt weniger weit ins Umland als tags.
+LNIGHT_BINS = [0, 43, 45, 48, 200]
+LNIGHT_LABELS = ["unter 43", "43-45", "45-48", "48 und mehr"]
+LNIGHT_REFERENZ = "unter 43"
+PEGEL_UNTER_KONTUR_NACHT = 39.0
+
 # Schwelle, ab der die Literatur einen Preiseffekt erwartet
 LDEN_SCHWELLE = 50.0
 

@@ -10,10 +10,10 @@ Die Beschaffung läuft vollständig über Skripte und ist damit reproduzierbar.
 ## Ergebnis in einem Absatz
 
 Fluglärm senkt die Bodenwerte messbar. Im am besten kontrollierten Modell
-kostet jedes zusätzliche dB(A) Tagespegel rund **2,4 % Bodenwert**
-(p = 0,003). Weil der Boden im Rhein-Main-Gebiet nur etwa 30–50 % des
+kostet jedes zusätzliche dB(A) Tagespegel rund **2,0 % Bodenwert**
+(p = 0,001). Weil der Boden im Rhein-Main-Gebiet nur etwa 30–50 % des
 Immobilienwerts ausmacht und das Gebäude selbst vom Lärm unberührt bleibt,
-entspricht das etwa **0,7–1,2 % je dB auf den Gesamtwert einer Immobilie** —
+entspricht das etwa **0,6–1,0 % je dB auf den Gesamtwert einer Immobilie** —
 und damit genau dem Korridor, den die internationale Literatur für Flughäfen
 ausweist (0,5–1,3 % je dB). Für die Routenänderung „Cindy S" (seit Juli 2025)
 ist es dagegen schlicht noch zu früh: Zwischen Inkrafttreten und dem jüngsten
@@ -35,27 +35,45 @@ der Spezifikationsvergleich:
 | Distanzen (Flughafen, Bahn, Autobahn, Zentrum) + Straßenlärm | −4,7 % | <0,001 | 0,53 |
 | + Umfeld (Industrie-/Grünflächenanteil) | −4,2 % | <0,001 | 0,55 |
 | + räumlicher Trend | −3,0 % | <0,001 | 0,60 |
-| + Gemeinde-Fixe-Effekte | −2,2 % | 0,003 | 0,72 |
-| **vollständig** | **−2,4 %** | **0,003** | **0,73** |
+| + Sozialstruktur (Zensus 2022) | −2,4 % | <0,001 | 0,66 |
+| **+ Gemeinde-Fixe-Effekte (vollständig)** | **−2,0 %** | **0,001** | **0,76** |
 
 Die unteren Zeilen sind die belastbaren. Dass der Effekt bei mehr Kontrollen
-schrumpft und sich dann bei gut −2 % stabilisiert, ist genau das erwartete
-Muster: Ein Teil des rohen Zusammenhangs war Lage, nicht Lärm.
+schrumpft und sich dann bei rund −2 % stabilisiert, ist genau das erwartete
+Muster: Ein Teil des rohen Zusammenhangs war Lage und Stadtgeschichte, nicht
+Lärm. Besonders deutlich wird das an der Sozialstruktur: Die Fluglärmgemeinden
+im Rhein-Main-Gebiet sind historisch Arbeiter- und Industriestädte, deren
+Bodenwerte auch ohne Lärm niedriger lägen.
 
 ## Die Modelle im Einzelnen
 
-**Modell A — Wertunterschied je Lärmklasse (Querschnitt 2024, n = 2.044, R² = 0,73)**
+**Modell A — Wertunterschied je Lärmklasse (Querschnitt 2024, n = 2.044, R² = 0,76)**
 
 | Lärmklasse (LAeq Tag) | Bodenwert ggü. Zonen unter 48 dB(A) | 95 %-KI | p |
 |---|---|---|---|
-| 48–50 dB(A) | −1,0 % | −9,0 bis +7,8 % | 0,825 |
-| 50–55 dB(A) | **−19,1 %** | −32,0 bis −3,7 % | **0,017** |
-| 55 dB(A) und mehr | **−21,2 %** | −30,6 bis −10,6 % | **0,0002** |
+| 48–50 dB(A) | −2,0 % | −8,7 bis +5,2 % | 0,577 |
+| 50–55 dB(A) | **−15,4 %** | −26,1 bis −3,1 % | **0,016** |
+| 55 dB(A) und mehr | **−20,1 %** | −29,2 bis −9,9 % | **0,0003** |
 
-Der Effekt setzt erst oberhalb von 50 dB(A) ein und wächst dann kaum weiter —
-ein Schwellenmuster, das gut zur Lärmwirkungsforschung passt.
+Der Effekt setzt erst oberhalb von 50 dB(A) ein — ein Schwellenmuster, das gut
+zur Lärmwirkungsforschung passt.
 
-**Modell A2 — stetiger Effekt:** −2,35 % Bodenwert je dB(A) (p = 0,003).
+**Modell A2 — stetiger Effekt:** −1,98 % Bodenwert je dB(A) (p = 0,001).
+
+**Modelle N/N2 — Nachtlärm (LAeq 22–6 Uhr).** Die Nachtkonturen beginnen schon
+bei 43 dB(A) und reichen wegen des Frankfurter Nachtflugverbots weniger weit
+ins Umland. Je dB fällt der Effekt etwas **stärker** aus als tags: −2,37 %
+(p = 0,003), mit einem Stufenmuster von −13,7 % (43–45 dB) über −14,2 %
+(45–48 dB) bis −18,1 % (ab 48 dB). Das passt zur Lärmwirkungsforschung, die
+Nachtlärm als den schädlicheren Teil der Belastung einstuft. Beide Pegel
+gemeinsam ins Modell zu nehmen, trennt sie nicht sauber — sie korrelieren mit
+0,85.
+
+**Modell M — Miete als alternative Zielgröße.** Die örtliche Nettokaltmiete aus
+dem Zensus 2022 zeigt **keinen** Lärmeffekt (−0,03 %, p = 0,92). Das ist kein
+Gegenbeweis: Die Miete liegt nur im 1-km-Raster vor, während der Lärm
+zonenscharf variiert. Diese Vergröberung zieht den Koeffizienten
+systematisch gegen null.
 
 **Modell B — Panel 2020–2026 mit Zonen-Fixen-Effekten:** −0,02 % je dB
 (p = 0,945, nicht signifikant). Dieses Modell nutzt nur die 374 Zonen, deren
@@ -131,6 +149,7 @@ gar nicht enthalten sein. Das Modell dient als Ausgangsmessung; der Stichtag
 | Straßen-, Schienen-, Industrielärm | HLNUG, EU-Umgebungslärmkartierung | ArcGIS MapServer (Raster) | 2022 |
 | Lagefaktoren, Flächennutzung | OpenStreetMap | Overpass API | laufend |
 | Kaufpreise (Gegenprobe) | GREIX, Kiel Institut | REST-API `api.greixx.net` | Quartalswerte 2010–2026 |
+| Sozialstruktur | Zensus 2022, Statistisches Bundesamt | ArcGIS FeatureServer, 1-km-Gitter | Stichtag 15.05.2022 |
 
 Drei Fundstücke, die das Projekt erst möglich gemacht haben:
 
@@ -157,6 +176,8 @@ src/
   fetch_noise.py      EU-Umgebungslärmkartierung (Straße, Schiene, Industrie)
   fetch_controls.py   OSM: Distanzen, Industrie- und Grünflächenanteile
   fetch_greix.py      GREIX-Kaufpreise (Städte und Frankfurter Viertel)
+  fetch_zensus.py     Sozialstruktur aus dem Zensus 2022 (1-km-Gitter)
+  fetch_boris_rlp.py  Rheinland-Pfalz (blockiert, siehe unten)
   build_dataset.py    Räumliche Verknüpfung zum Standort-Panel
   models.py           Hedonische Regressionen A, A2, B, C, D
   greix_referenz.py   Bodenrichtwerte gegen echte Kaufpreise halten
@@ -172,7 +193,7 @@ python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
 ```
 
 ```bash
-cd src && python fetch_boris.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python fetch_greix.py && python build_dataset.py && python models.py && python greix_referenz.py && python viz_prep.py
+cd src && python fetch_boris.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python fetch_greix.py && python fetch_zensus.py && python build_dataset.py && python models.py && python greix_referenz.py && python viz_prep.py
 ```
 
 ```bash
@@ -229,8 +250,17 @@ den Start der App genügen die im Repo enthaltenen aufbereiteten Dateien.
 * **Für 2025 fehlen Lärmkonturen.** Die Wirkung von „Cindy S" lässt sich
   deshalb nicht über gemessene Pegel abbilden, sondern nur über die betroffenen
   Gemeinden.
-* **Rheinland-Pfalz fehlt.** Mainz liegt außerhalb von BORIS Hessen; die
-  entlastete Westseite ist nur mit Wiesbaden vertreten.
+* **Rheinland-Pfalz fehlt — und lässt sich derzeit nicht ergänzen.** Mainz
+  liegt außerhalb von BORIS Hessen. Die rheinland-pfälzischen Daten wären
+  fachlich ein Gewinn (Stichtage von 2000 bis 2026, also eine längere Reihe
+  als Hessen), sind aber nicht frei abrufbar: Die OGC-API unter
+  `geoportal.rlp.de/spatial-objects/548` antwortet mit HTTP 401, die Dienste
+  unter `geo5.service24.rlp.de` mit HTTP 403, und einen Massendownload gibt es
+  nicht. Der kostenfreie Basisdienst ist nur interaktiv über boris.rlp.de
+  nutzbar. `src/fetch_boris_rlp.py` ist einsatzbereit hinterlegt und
+  funktioniert, sobald ein GeoPortal-Zugang in den Umgebungsvariablen
+  `RLP_GEOPORTAL_USER` und `RLP_GEOPORTAL_PASS` steht. Bis dahin ist die durch
+  „Cindy S" entlastete Westseite nur mit Wiesbaden vertreten.
 
 ## Lizenzhinweise
 

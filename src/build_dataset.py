@@ -30,6 +30,7 @@ from config import (
     NUTZUNG_GEMISCHT,
     NUTZUNG_WOHNEN,
     PEGEL_UNTER_KONTUR,
+    PEGEL_UNTER_KONTUR_NACHT,
 )
 
 # Bodenrichtwert-Stichtag -> Kalenderjahr der Lärmkonturen (Vorjahr).
@@ -185,6 +186,44 @@ def main() -> None:
     kontrollen = pd.read_parquet(DATA_RAW / "kontrollen_zonen.parquet")
     ref = ref.merge(kontrollen, on="gml_id", how="left")
 
+    # Sozialstruktur aus dem Zensus 2022 (1-km-Gitter). Zugeordnet wird die
+    # nächstgelegene Gitterzelle; bei 1 km Kantenlänge liegt der
+    # Repräsentativpunkt einer Zone praktisch immer in der eigenen Zelle.
+    zensus_pfad = DATA_RAW / "zensus_gitter.parquet"
+    if zensus_pfad.exists():
+        zensus = gpd.read_parquet(zensus_pfad).to_crs(CRS_METRIC)
+        spalten = [
+            "einwohner_je_km2", "Durchschnittsalter", "DurchschnHHGroesse",
+            "Eigentuemerquote", "AnteilAuslaender", "AnteilUeber65",
+            "durchschnFlaechejeWohn", "anteil_altbau_vor1949",
+            "anteil_nachkriegsbau", "durchschnMieteQM", "Leerstandsquote",
+        ]
+        punkte = gpd.GeoDataFrame(
+            {"gml_id": ref["gml_id"]},
+            geometry=ref.geometry.representative_point(),
+            crs=CRS_METRIC,
+        )
+        treffer = gpd.sjoin_nearest(
+            punkte, zensus[spalten + ["geometry"]], how="left", max_distance=1500
+        ).drop_duplicates(subset="gml_id")
+        ref = ref.merge(
+            treffer[["gml_id"] + spalten].rename(
+                columns={
+                    "Durchschnittsalter": "durchschnittsalter",
+                    "DurchschnHHGroesse": "haushaltsgroesse",
+                    "Eigentuemerquote": "eigentuemerquote",
+                    "AnteilAuslaender": "anteil_auslaender",
+                    "AnteilUeber65": "anteil_ueber65",
+                    "durchschnFlaechejeWohn": "flaeche_je_wohnung",
+                    "durchschnMieteQM": "miete_eur_qm",
+                    "Leerstandsquote": "leerstandsquote",
+                }
+            ),
+            on="gml_id",
+            how="left",
+        )
+        print(f"Zensus zugeordnet: {ref['einwohner_je_km2'].notna().sum()} von {len(ref)} Zonen")
+
     # EU-Umgebungslärmkartierung 2022 als Zweitquelle (u. a. Straßenlärm)
     eu_laerm = pd.read_parquet(DATA_RAW / "laerm_zonen.parquet")
     ref = ref.merge(
@@ -243,6 +282,8 @@ def main() -> None:
     # in die Modelle eingehen statt zu fehlen, und bilden die Referenzgruppe.
     panel["flug_tag_gefuellt"] = panel["flug_tag"].fillna(PEGEL_UNTER_KONTUR)
     panel["unter_kontur"] = panel["flug_tag"].isna()
+    panel["flug_nacht_gefuellt"] = panel["flug_nacht"].fillna(PEGEL_UNTER_KONTUR_NACHT)
+    panel["unter_kontur_nacht"] = panel["flug_nacht"].isna()
 
     panel["log_brw"] = np.log(panel["bodenrichtwert"].where(panel["bodenrichtwert"] > 0))
     panel["laermklasse"] = pd.cut(
