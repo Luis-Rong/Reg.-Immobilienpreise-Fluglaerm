@@ -64,6 +64,14 @@ def main() -> None:
     kont.to_parquet(DATA_PROCESSED / "konturen_karte.parquet")
     print(f"konturen_karte.parquet: {len(kont)} Isophonen aus {letztes}")
 
+    # GREIX-Zeitreihe mitliefern, damit die App ohne data/raw startet
+    # (die Rohdaten sind zu groß fürs Repository und deshalb ausgeschlossen).
+    greix_quelle = DATA_RAW / "greix_staedte.parquet"
+    if greix_quelle.exists():
+        greix = pd.read_parquet(greix_quelle)
+        greix.to_parquet(DATA_PROCESSED / "greix_staedte.parquet")
+        print(f"greix_staedte.parquet: {len(greix)} Zeilen übernommen")
+
 
 if __name__ == "__main__":
     main()

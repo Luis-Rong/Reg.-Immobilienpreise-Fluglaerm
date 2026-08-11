@@ -1,3 +1,16 @@
+---
+title: Fluglärm und Immobilienwerte Frankfurt
+emoji: ✈️
+colorFrom: blue
+colorTo: red
+sdk: gradio
+sdk_version: 6.22.0
+app_file: app.py
+pinned: false
+license: mit
+short_description: Hedonische Regression zum Einfluss von Fluglärm auf Bodenwerte
+---
+
 # Fluglärm und Immobilienwerte rund um den Frankfurter Flughafen
 
 Ein interaktives Tool, das mit einer hedonischen Regression schätzt, wie stark
@@ -182,19 +195,33 @@ src/
   models.py           Hedonische Regressionen A, A2, B, C, D
   greix_referenz.py   Bodenrichtwerte gegen echte Kaufpreise halten
   viz_prep.py         Kartendaten vereinfachen und exportieren
+app.py                Gradio-App -- Einstiegspunkt des Hugging-Face-Space
 app/
-  streamlit_app.py    Interaktive Karte, Ergebnistabellen, Limitationen
+  streamlit_app.py    Streamlit-Fassung für den lokalen Gebrauch
 ```
+
+Beide Oberflächen lesen dieselben aufbereiteten Dateien aus `data/processed`
+und `results`; die Analyse läuft also nur einmal.
 
 ## Nachvollziehen
 
 ```bash
-python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
+python -m venv .venv && .venv/Scripts/pip install -r requirements-analyse.txt
 ```
+
+`requirements.txt` enthält nur, was die App zum Laufen braucht — das hält den
+Space-Build klein. `requirements-analyse.txt` ergänzt die Pakete für
+Datenbeschaffung und Regressionen.
 
 ```bash
 cd src && python fetch_boris.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python fetch_greix.py && python fetch_zensus.py && python build_dataset.py && python models.py && python greix_referenz.py && python viz_prep.py
 ```
+
+```bash
+python app.py
+```
+
+Alternativ die Streamlit-Fassung:
 
 ```bash
 streamlit run app/streamlit_app.py

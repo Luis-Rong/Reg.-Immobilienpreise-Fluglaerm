@@ -4,6 +4,11 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 
+# Zugangsdaten bleiben lokal. Niemals committen.
+.env
+.env.*
+!.env.beispiel
+
 # Rohdaten werden per Skript reproduziert und sind zu groß fürs Repo.
 data/raw/
 
@@ -12,3 +17,4 @@ data/raw/
 data/processed/*
 !data/processed/karte.parquet
 !data/processed/konturen_karte.parquet
+!data/processed/greix_staedte.parquet

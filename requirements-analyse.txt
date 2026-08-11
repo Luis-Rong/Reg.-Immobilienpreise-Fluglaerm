@@ -1,0 +1,8 @@
+# Zusätzliche Pakete für die Datenbeschaffung und die Regressionen.
+# Die App selbst braucht sie nicht -- der Hugging-Face-Space installiert
+# deshalb nur requirements.txt und startet entsprechend schneller.
+-r requirements.txt
+
+statsmodels>=0.14
+mapclassify>=2.6
+streamlit>=1.40

@@ -11,16 +11,21 @@ längere Reihe als Hessen. Automatisiert abrufbar sind sie aber nicht:
 * Auf der Open-Data-Seite des LVermGeo steht kein Massendownload bereit.
 
 Der kostenfreie "Basisdienst" ist nur interaktiv über boris.rlp.de nutzbar.
-Für den automatisierten Zugriff ist eine Registrierung beim GeoPortal.rlp
-nötig -- die muss der Betreiber des Projekts selbst vornehmen, Zugangsdaten
-gehören nicht in ein öffentliches Repository.
 
-Sobald ein Zugang besteht, genügt es, die beiden Umgebungsvariablen zu setzen:
+Wichtig: Eine Registrierung beim GeoPortal.rlp allein genügt NICHT. Geschützte
+Dienste müssen vom Datenanbieter -- hier dem LVermGeo -- für das jeweilige
+Konto einzeln freigeschaltet werden. Der Antrag läuft über das Geoportal, der
+Anbieter entscheidet darüber von Hand. Mit registriertem, aber nicht
+freigeschaltetem Konto antwortet der Dienst weiterhin mit HTTP 401.
 
-    set RLP_GEOPORTAL_USER=...
-    set RLP_GEOPORTAL_PASS=...
+Sobald ein Zugang besteht, gehören die Zugangsdaten in die Datei .env im
+Projektverzeichnis (Vorlage: .env.beispiel). Sie wird von git ignoriert:
 
-Danach lädt dieses Skript die Zonen analog zu fetch_boris.py.
+    RLP_GEOPORTAL_USER=...
+    RLP_GEOPORTAL_PASS=...
+
+Alternativ funktionieren gleichnamige Umgebungsvariablen. Beides gehört
+niemals in den Quelltext -- der landet im öffentlichen Repository.
 
 Ergebnis: data/raw/boris_rlp_<jahr>.parquet
 """
@@ -29,6 +34,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import geopandas as gpd
 import requests
@@ -51,7 +57,25 @@ def _bbox_wgs84() -> str:
     return f"{ecken.iloc[0].x},{ecken.iloc[0].y},{ecken.iloc[1].x},{ecken.iloc[1].y}"
 
 
+def _lade_env() -> None:
+    """Zugangsdaten aus der lokalen .env in die Umgebung übernehmen.
+
+    Bewusst ohne Zusatzbibliothek: eine Zeile je Eintrag, Rauten sind
+    Kommentare. Bereits gesetzte Umgebungsvariablen haben Vorrang.
+    """
+    pfad = Path(__file__).resolve().parent.parent / ".env"
+    if not pfad.exists():
+        return
+    for zeile in pfad.read_text(encoding="utf-8").splitlines():
+        zeile = zeile.strip()
+        if not zeile or zeile.startswith("#") or "=" not in zeile:
+            continue
+        schluessel, wert = zeile.split("=", 1)
+        os.environ.setdefault(schluessel.strip(), wert.strip())
+
+
 def _session() -> requests.Session:
+    _lade_env()
     s = requests.Session()
     s.headers.update({"User-Agent": USER_AGENT})
     nutzer, passwort = os.getenv("RLP_GEOPORTAL_USER"), os.getenv("RLP_GEOPORTAL_PASS")
@@ -102,7 +126,20 @@ def main() -> None:
         if ziel.exists():
             print(f"[{jahr}] existiert bereits -> übersprungen")
             continue
-        gdf = hole_stichtag(session, jahr)
+        try:
+            gdf = hole_stichtag(session, jahr)
+        except requests.HTTPError as fehler:
+            if fehler.response is not None and fehler.response.status_code == 401:
+                print(
+                    f"[{jahr}] HTTP 401 trotz hinterlegter Zugangsdaten.\n\n"
+                    "Das Konto ist offenbar registriert, aber für den "
+                    "BORIS-Dienst noch nicht freigeschaltet. Geschützte Dienste\n"
+                    "gibt im GeoPortal.rlp der Datenanbieter (LVermGeo) einzeln\n"
+                    "frei; der Antrag läuft über das Portal und wird von Hand\n"
+                    "bearbeitet. Bis dahin bleibt Mainz außen vor."
+                )
+                sys.exit(2)
+            raise
         gdf.to_parquet(ziel)
         print(f"[{jahr}] {len(gdf)} Zonen -> {ziel.name}")
 

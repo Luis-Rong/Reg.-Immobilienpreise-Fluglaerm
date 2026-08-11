@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "fluglaerm-app",
+      "name": "fluglaerm-gradio",
       "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "streamlit", "run", "app/streamlit_app.py"],
-      "port": 8501
+      "runtimeArgs": ["app.py"],
+      "port": 7860
     }
   ]
 }
