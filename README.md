@@ -190,7 +190,7 @@ src/
   fetch_controls.py   OSM: Distanzen, Industrie- und Grünflächenanteile
   fetch_greix.py      GREIX-Kaufpreise (Städte und Frankfurter Viertel)
   fetch_zensus.py     Sozialstruktur aus dem Zensus 2022 (1-km-Gitter)
-  fetch_boris_rlp.py  Rheinland-Pfalz (blockiert, siehe unten)
+  fetch_boris_rlp.py  Mainzer Kacheln über den freien VBORIS-RLP-WMS
   build_dataset.py    Räumliche Verknüpfung zum Standort-Panel
   models.py           Hedonische Regressionen A, A2, B, C, D
   greix_referenz.py   Bodenrichtwerte gegen echte Kaufpreise halten
@@ -214,7 +214,7 @@ Space-Build klein. `requirements-analyse.txt` ergänzt die Pakete für
 Datenbeschaffung und Regressionen.
 
 ```bash
-cd src && python fetch_boris.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python fetch_greix.py && python fetch_zensus.py && python build_dataset.py && python models.py && python greix_referenz.py && python viz_prep.py
+cd src && python fetch_boris.py && python fetch_boris_rlp.py && python fetch_contours.py && python fetch_noise.py && python fetch_controls.py && python fetch_greix.py && python fetch_zensus.py && python build_dataset.py && python models.py && python greix_referenz.py && python viz_prep.py
 ```
 
 ```bash
@@ -272,22 +272,26 @@ den Start der App genügen die im Repo enthaltenen aufbereiteten Dateien.
   gemeinsam die Referenzgruppe; ein Gradient im unteren Bereich lässt sich
   nicht schätzen.
 * **Korrelation ist nicht Kausalität.** Der Spezifikationsvergleich legt offen,
-  wie stark die Schätzung von den Kontrollvariablen abhängt. Nicht kontrolliert
-  sind Sozialstruktur und Baualtersklassen.
+  wie stark die Schätzung von den Kontrollvariablen abhängt.
 * **Für 2025 fehlen Lärmkonturen.** Die Wirkung von „Cindy S" lässt sich
   deshalb nicht über gemessene Pegel abbilden, sondern nur über die betroffenen
   Gemeinden.
-* **Rheinland-Pfalz fehlt — und lässt sich derzeit nicht ergänzen.** Mainz
-  liegt außerhalb von BORIS Hessen. Die rheinland-pfälzischen Daten wären
-  fachlich ein Gewinn (Stichtage von 2000 bis 2026, also eine längere Reihe
-  als Hessen), sind aber nicht frei abrufbar: Die OGC-API unter
-  `geoportal.rlp.de/spatial-objects/548` antwortet mit HTTP 401, die Dienste
-  unter `geo5.service24.rlp.de` mit HTTP 403, und einen Massendownload gibt es
-  nicht. Der kostenfreie Basisdienst ist nur interaktiv über boris.rlp.de
-  nutzbar. `src/fetch_boris_rlp.py` ist einsatzbereit hinterlegt und
-  funktioniert, sobald ein GeoPortal-Zugang in den Umgebungsvariablen
-  `RLP_GEOPORTAL_USER` und `RLP_GEOPORTAL_PASS` steht. Bis dahin ist die durch
-  „Cindy S" entlastete Westseite nur mit Wiesbaden vertreten.
+* **Mainz ist auf der Karte, aber nicht im Modell.** Die OGC-API von BORIS RLP
+  (`geoportal.rlp.de/spatial-objects/548`) verlangt eine Freischaltung durch
+  den Datenanbieter — eine Registrierung beim GeoPortal.rlp allein genügt
+  nicht, das Konto blieb bei HTTP 401. Es gibt aber einen zweiten, tatsächlich
+  offenen Weg: den kostenfreien **VBORIS-RLP-Basisdienst** als WMS unter
+  `geo5.service24.rlp.de`, kein Konto nötig. Er liefert keine Zonenpolygone
+  (WMS statt WFS), aber unterstützt `GetFeatureInfo` — daraus entsteht ein
+  450-Meter-Punktraster über Mainz mit 345 Kacheln, abgefragt für die
+  Stichtage 2024 und 2026 (`src/fetch_boris_rlp.py`). Diese Kacheln sind auf
+  der Karte sichtbar (Bodenrichtwert- und Wertentwicklungsansicht), **fließen
+  aber nicht** in die Regressionsmodelle oder die GREIX-Gegenprobe ein — die
+  Modelle sind auf die spezifischen Attributnamen der Hessen-Zonen
+  zugeschnitten, eine Vermischung mit Rasterpunkten anderer Herkunft wäre
+  methodisch unsauber, und GREIX führt für Mainz ohnehin keine eigenen
+  Stadtviertel. Historische Stichtage (2020/2022) ließen sich mit demselben
+  Verfahren ergänzen, wurden aber aus Aufwandsgründen nicht abgerufen.
 
 ## Lizenzhinweise
 

@@ -157,6 +157,7 @@ def zeichne_karte(gdf, spalte, palette, einheit, titel, fundstelle=None) -> str:
         ("bodenrichtwert_2026", "Bodenrichtwert 2026 (€/m²):"),
         ("flug_tag_2024", "Fluglärm Tag (dB(A)):"),
         ("brw_veraenderung_pct", "Wertänderung 2024→2026 (%):"),
+        ("datenquelle", "Quelle:"),
     ):
         if extra in daten.columns and extra != spalte:
             felder.append(extra)
@@ -388,11 +389,21 @@ Bebauungsstruktur, sind also kein gleichmäßiges Raster.
 | Geschätzter Lärmeffekt | Wertabschlag laut Modell, rot = Abschlag | **Modellergebnis** |
 | Wertentwicklung | Preisänderung 2024 → 2026, rot = gefallen | Rohdaten |
 
-Nur „Geschätzter Lärmeffekt“ zeigt ein Regressionsergebnis. Bei den anderen
-bedeutet Dunkelrot nicht „durch Lärm verursacht“, sondern schlicht „hier ist es
-laut“ bzw. „hier ist es teuer“ — Frankfurt-Sachsenhausen ist beides, weil
+Nur „Geschätzter Lärmeffekt” zeigt ein Regressionsergebnis. Bei den anderen
+bedeutet Dunkelrot nicht „durch Lärm verursacht”, sondern schlicht „hier ist es
+laut” bzw. „hier ist es teuer” — Frankfurt-Sachsenhausen ist beides, weil
 zentral. Die gestrichelten Linien sind die Lärmkonturen bei 50/55/60/65 dB(A);
 sie helfen beim Gegenprüfen.
+
+**Mainz sieht anders aus als der Rest der Karte** — kleinere, gleichmäßig
+gerasterte Quadrate statt der unregelmäßigen Zonenzuschnitte. Das liegt an der
+Quelle: Für Rheinland-Pfalz gibt es keinen offenen Massendownload der
+Zonenpolygone, nur einen abfragbaren Kartendienst (WMS). Jedes Quadrat ist ein
+450-Meter-Rasterpunkt mit dem dort geltenden Bodenrichtwert — technisch näher
+am ursprünglich vorgeschwebten „Kachelsystem” als die amtlichen Zonen. Die
+Mainzer Kacheln fließen **nicht** in die Regressionsmodelle ein (Tab
+„Regressionsergebnisse”); dort bleibt es bei Hessen. Sie dienen der Karte und
+dem visuellen Abgleich mit der entlasteten Seite von „Cindy S”.
 """
 
 GRENZEN = """
@@ -405,6 +416,7 @@ GRENZEN = """
 | Straßen-, Schienen-, Industrielärm | HLNUG, EU-Umgebungslärmkartierung | 2022 |
 | Sozialstruktur | Zensus 2022, Statistisches Bundesamt (1-km-Gitter) | 15.05.2022 |
 | Kaufpreise | GREIX, Kiel Institut | Quartalswerte 2010–2026 |
+| Mainzer Bodenrichtwerte | VBORIS RLP Basisdienst (WMS-Punktraster) | Stichtage 2024 / 2026 |
 | Lagefaktoren | OpenStreetMap via Overpass | laufend |
 
 Alle Quellen sind kostenfrei und ohne Anmeldung nutzbar.
@@ -421,10 +433,12 @@ Alle Quellen sind kostenfrei und ohne Anmeldung nutzbar.
 - **Für 2025 fehlen Lärmkonturen.** Die Wirkung von „Cindy S“ lässt sich
   deshalb nicht über gemessene Pegel abbilden, sondern nur über die betroffenen
   Gemeinden.
-- **Rheinland-Pfalz fehlt.** Mainz liegt außerhalb von BORIS Hessen; die
-  rheinland-pfälzischen Dienste sind nur nach Freischaltung durch den
-  Datenanbieter abrufbar. Die entlastete Westseite ist daher nur mit Wiesbaden
-  vertreten.
+- **Mainz ist auf der Karte, aber nicht im Modell.** Die geschützte OGC-API
+  von BORIS RLP verlangt eine Freischaltung durch den Datenanbieter. Über den
+  frei zugänglichen VBORIS-Basisdienst (WMS statt WFS) liefert ein
+  450-Meter-Punktraster trotzdem 345 Kacheln für 2024 und 2026 — sichtbar auf
+  der Karte, aber wegen der abweichenden Datenstruktur nicht Teil der
+  Regressionsmodelle.
 
 ### Lizenz
 

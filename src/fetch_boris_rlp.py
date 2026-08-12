@@ -1,147 +1,144 @@
-"""Bodenrichtwerte Rheinland-Pfalz -- für Mainz und die entlastete Westseite.
+"""Bodenrichtwerte Rheinland-Pfalz (Mainz) über den freien VBORIS-Dienst.
 
-Stand der Prüfung (August 2026): Die Daten existieren und wären fachlich ein
-Gewinn -- Rheinland-Pfalz führt Stichtage von 2000 bis 2026 und damit eine
-längere Reihe als Hessen. Automatisiert abrufbar sind sie aber nicht:
+Vorgeschichte: Der Versuch, BORIS RLP über die OGC-API-Features unter
+geoportal.rlp.de/spatial-objects/548 abzurufen, scheiterte an HTTP 401 --
+Registrierung allein schaltet geschützte Dienste dort nicht frei, das muss
+der Datenanbieter (LVermGeo) von Hand tun.
 
-* OGC API Features unter geoportal.rlp.de/spatial-objects/548 antwortet mit
-  HTTP 401; die Sammlungen (ms:BORIS_2000 ... ms:BORIS_2026) sind zwar
-  auflistbar, die Features selbst nicht.
-* Die Dienste unter geo5.service24.rlp.de antworten durchgängig mit HTTP 403.
-* Auf der Open-Data-Seite des LVermGeo steht kein Massendownload bereit.
+Es gibt aber einen zweiten, tatsächlich offenen Weg: den kostenfreien
+"VBORIS RLP Basisdienst" als WMS unter geo5.service24.rlp.de. Er liefert
+zwar nur Kartenbilder, unterstützt aber GetFeatureInfo -- an einem
+angeklickten Punkt liest der Dienst Zonennummer, Bodenrichtwert,
+Entwicklungszustand und Nutzungsart aus, exakt wie der Basisdienst-Viewer
+das im Browser tut. Kein Konto nötig.
 
-Der kostenfreie "Basisdienst" ist nur interaktiv über boris.rlp.de nutzbar.
+Da es sich um einen WMS und keinen WFS handelt, gibt es keine
+Zonenpolygone -- nur Werte an angefragten Punkten. Abgefragt wird deshalb
+ein Punktraster über Mainz, und jeder Punkt wird als quadratische Kachel in
+Rastergröße gezeichnet. Das ist methodisch etwas anderes als die
+Zonenpolygone aus Hessen (weshalb diese Kacheln NICHT in die
+Regressionsmodelle einfließen, siehe README), ergibt aber genau das
+Kachelsystem, das für die Karte ursprünglich vorgeschwebt hat.
 
-Wichtig: Eine Registrierung beim GeoPortal.rlp allein genügt NICHT. Geschützte
-Dienste müssen vom Datenanbieter -- hier dem LVermGeo -- für das jeweilige
-Konto einzeln freigeschaltet werden. Der Antrag läuft über das Geoportal, der
-Anbieter entscheidet darüber von Hand. Mit registriertem, aber nicht
-freigeschaltetem Konto antwortet der Dienst weiterhin mit HTTP 401.
-
-Sobald ein Zugang besteht, gehören die Zugangsdaten in die Datei .env im
-Projektverzeichnis (Vorlage: .env.beispiel). Sie wird von git ignoriert:
-
-    RLP_GEOPORTAL_USER=...
-    RLP_GEOPORTAL_PASS=...
-
-Alternativ funktionieren gleichnamige Umgebungsvariablen. Beides gehört
-niemals in den Quelltext -- der landet im öffentlichen Repository.
-
-Ergebnis: data/raw/boris_rlp_<jahr>.parquet
+Ergebnis: data/raw/boris_rlp_tiles_<jahr>.parquet
 """
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
+import re
+import time
+from html import unescape
 
 import geopandas as gpd
+import numpy as np
+import pandas as pd
 import requests
-from requests.auth import HTTPBasicAuth
+from shapely.geometry import box
 
-from config import CRS_WGS84, DATA_RAW, STUDY_BBOX_25832, USER_AGENT
+from config import CRS_METRIC, DATA_RAW, REQUEST_DELAY_S, USER_AGENT
 
-API = "https://www.geoportal.rlp.de/spatial-objects/548"
-STICHTAGE = (2020, 2022, 2024, 2026)
+WMS_TEMPLATE = "https://geo5.service24.rlp.de/wms/RLP_VBORISFREE{jahr}.fcgi"
+LAYER = "Bodenrichtwerte_Basis_RLP"
+STICHTAGE = (2024, 2026)
 
-# Der Dienst akzeptiert nur diese Werte für limit.
-SEITE = 1000
+# Mainz-Stadtgebiet in EPSG:25832 -- deckt die durch "Cindy S" entlastete
+# Südumfliegung ab. Größer als nötig zu fassen lohnt kaum: außerhalb des
+# Stadtgebiets gehört die Fläche meist zu anderen Gutachterausschüssen mit
+# eigenen, ebenfalls abzufragenden Diensten.
+MAINZ_BBOX_25832 = (442_000, 5_533_000, 452_500, 5_544_000)
+RASTER_M = 450
 
+_ZELLE_MUSTER = re.compile(r"<td[^>]*>(.*?)</td>", re.IGNORECASE | re.DOTALL)
+_TAG_MUSTER = re.compile(r"<[^>]+>")
 
-def _bbox_wgs84() -> str:
-    minx, miny, maxx, maxy = STUDY_BBOX_25832
-    ecken = gpd.GeoSeries(
-        gpd.points_from_xy([minx, maxx], [miny, maxy]), crs="EPSG:25832"
-    ).to_crs(CRS_WGS84)
-    return f"{ecken.iloc[0].x},{ecken.iloc[0].y},{ecken.iloc[1].x},{ecken.iloc[1].y}"
+FELDER = {
+    "Nummer der Bodenrichtwertzone": "zone_nr",
+    "Bodenrichtwert": "brw_roh",
+    "Entwicklungszustand": "entwicklungszustand",
+    "Nutzungsart": "art",
+    "Gemeinde": "gemeinde",
+    "Gemarkung": "gemarkung",
+}
 
-
-def _lade_env() -> None:
-    """Zugangsdaten aus der lokalen .env in die Umgebung übernehmen.
-
-    Bewusst ohne Zusatzbibliothek: eine Zeile je Eintrag, Rauten sind
-    Kommentare. Bereits gesetzte Umgebungsvariablen haben Vorrang.
-    """
-    pfad = Path(__file__).resolve().parent.parent / ".env"
-    if not pfad.exists():
-        return
-    for zeile in pfad.read_text(encoding="utf-8").splitlines():
-        zeile = zeile.strip()
-        if not zeile or zeile.startswith("#") or "=" not in zeile:
-            continue
-        schluessel, wert = zeile.split("=", 1)
-        os.environ.setdefault(schluessel.strip(), wert.strip())
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": USER_AGENT})
 
 
-def _session() -> requests.Session:
-    _lade_env()
-    s = requests.Session()
-    s.headers.update({"User-Agent": USER_AGENT})
-    nutzer, passwort = os.getenv("RLP_GEOPORTAL_USER"), os.getenv("RLP_GEOPORTAL_PASS")
-    if nutzer and passwort:
-        s.auth = HTTPBasicAuth(nutzer, passwort)
-    return s
+def _raster_punkte() -> list[tuple[float, float]]:
+    minx, miny, maxx, maxy = MAINZ_BBOX_25832
+    xs = np.arange(minx + RASTER_M / 2, maxx, RASTER_M)
+    ys = np.arange(miny + RASTER_M / 2, maxy, RASTER_M)
+    return [(x, y) for x in xs for y in ys]
 
 
-def hole_stichtag(session: requests.Session, jahr: int) -> gpd.GeoDataFrame:
-    features = []
-    offset = 0
-    while True:
-        antwort = session.get(
-            f"{API}/collections/ms:BORIS_{jahr}/items",
-            params={"bbox": _bbox_wgs84(), "limit": SEITE, "offset": offset, "f": "json"},
-            timeout=180,
-        )
-        antwort.raise_for_status()
-        daten = antwort.json()
-        teil = daten.get("features", [])
-        features.extend(teil)
-        if len(teil) < SEITE:
-            break
-        offset += SEITE
+def _parse_feature_info(html: str) -> dict | None:
+    zellen = [unescape(_TAG_MUSTER.sub("", z)).strip() for z in _ZELLE_MUSTER.findall(html)]
+    zellen = [z for z in zellen if z]
 
-    return gpd.GeoDataFrame.from_features(features, crs=CRS_WGS84)
+    treffer = {}
+    for i, zelle in enumerate(zellen[:-1]):
+        for label, feld in FELDER.items():
+            if zelle == label:
+                treffer[feld] = zellen[i + 1]
+                break
+
+    if "brw_roh" not in treffer:
+        return None
+
+    zahl = re.search(r"[\d.,]+", treffer["brw_roh"])
+    if not zahl:
+        return None
+    treffer["bodenrichtwert"] = float(zahl.group(0).replace(".", "").replace(",", "."))
+    return treffer
+
+
+def _abfragen(jahr: int, x: float, y: float) -> dict | None:
+    resp = SESSION.get(
+        WMS_TEMPLATE.format(jahr=jahr),
+        params={
+            "SERVICE": "WMS", "VERSION": "1.1.1", "REQUEST": "GetFeatureInfo",
+            "LAYERS": LAYER, "QUERY_LAYERS": LAYER, "STYLES": "",
+            "SRS": CRS_METRIC,
+            "BBOX": f"{x-500},{y-500},{x+500},{y+500}",
+            "WIDTH": 400, "HEIGHT": 400, "X": 200, "Y": 200,
+            "INFO_FORMAT": "text/html", "FEATURE_COUNT": 1,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return _parse_feature_info(resp.text)
+
+
+def hole_stichtag(jahr: int) -> gpd.GeoDataFrame:
+    punkte = _raster_punkte()
+    zeilen = []
+    for i, (x, y) in enumerate(punkte):
+        try:
+            treffer = _abfragen(jahr, x, y)
+        except requests.RequestException:
+            treffer = None
+        if treffer:
+            treffer["geometry"] = box(
+                x - RASTER_M / 2, y - RASTER_M / 2, x + RASTER_M / 2, y + RASTER_M / 2
+            )
+            zeilen.append(treffer)
+        if (i + 1) % 100 == 0:
+            print(f"  [{jahr}] {i+1}/{len(punkte)} Punkte abgefragt, {len(zeilen)} Treffer")
+        time.sleep(REQUEST_DELAY_S)
+
+    return gpd.GeoDataFrame(zeilen, geometry="geometry", crs=CRS_METRIC)
 
 
 def main() -> None:
-    session = _session()
-    if session.auth is None:
-        print(
-            "Keine Zugangsdaten gefunden.\n\n"
-            "Der BORIS-Dienst von Rheinland-Pfalz ist nicht frei abrufbar: die\n"
-            "OGC-API antwortet mit HTTP 401, die Dienste unter\n"
-            "geo5.service24.rlp.de mit HTTP 403, und einen Massendownload gibt\n"
-            "es nicht. Für Hessen war das anders -- dort sind sowohl WFS als\n"
-            "auch WMS ohne Anmeldung nutzbar.\n\n"
-            "Zum Freischalten: beim GeoPortal.rlp registrieren und danach\n"
-            "RLP_GEOPORTAL_USER und RLP_GEOPORTAL_PASS setzen.\n\n"
-            "Ohne Mainz fehlt der Analyse die durch 'Cindy S' entlastete\n"
-            "Westseite; vertreten ist sie derzeit nur durch Wiesbaden."
-        )
-        sys.exit(1)
-
     for jahr in STICHTAGE:
-        ziel = DATA_RAW / f"boris_rlp_{jahr}.parquet"
+        ziel = DATA_RAW / f"boris_rlp_tiles_{jahr}.parquet"
         if ziel.exists():
             print(f"[{jahr}] existiert bereits -> übersprungen")
             continue
-        try:
-            gdf = hole_stichtag(session, jahr)
-        except requests.HTTPError as fehler:
-            if fehler.response is not None and fehler.response.status_code == 401:
-                print(
-                    f"[{jahr}] HTTP 401 trotz hinterlegter Zugangsdaten.\n\n"
-                    "Das Konto ist offenbar registriert, aber für den "
-                    "BORIS-Dienst noch nicht freigeschaltet. Geschützte Dienste\n"
-                    "gibt im GeoPortal.rlp der Datenanbieter (LVermGeo) einzeln\n"
-                    "frei; der Antrag läuft über das Portal und wird von Hand\n"
-                    "bearbeitet. Bis dahin bleibt Mainz außen vor."
-                )
-                sys.exit(2)
-            raise
+        print(f"[{jahr}] Raster über Mainz abfragen ({len(_raster_punkte())} Punkte) ...")
+        gdf = hole_stichtag(jahr)
         gdf.to_parquet(ziel)
-        print(f"[{jahr}] {len(gdf)} Zonen -> {ziel.name}")
+        print(f"[{jahr}] {len(gdf)} Kacheln mit Bodenrichtwert -> {ziel.name}")
 
 
 if __name__ == "__main__":

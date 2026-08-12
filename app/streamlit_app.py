@@ -202,6 +202,7 @@ def zeichne_karte(
         ("bodenrichtwert_2026", "Bodenrichtwert 01.01.2026 (€/m²):"),
         ("flug_tag_2024", "Fluglärm Tag (dB(A)):"),
         ("brw_veraenderung_pct", "Wertänderung 2024→2026 (%):"),
+        ("datenquelle", "Quelle:"),
     ):
         if extra in daten.columns and extra != spalte:
             tooltip_felder.append(extra)
@@ -406,6 +407,13 @@ ist es teuer".
 **Die gestrichelten Linien** sind die Fluglärmkonturen bei 50, 55, 60 und
 65 dB(A). Sie helfen beim Abgleich: Liegt eine dunkle Zone innerhalb der
 Konturen oder nur zufällig daneben?
+
+**Mainz sieht anders aus** — kleinere, gleichmäßig gerasterte Quadrate statt
+der unregelmäßigen Zonenzuschnitte. Für Rheinland-Pfalz gibt es keinen
+offenen Massendownload der Zonenpolygone, nur einen abfragbaren Kartendienst.
+Jedes Quadrat ist ein 450-Meter-Rasterpunkt mit dem dort geltenden
+Bodenrichtwert. Die Mainzer Kacheln fließen **nicht** in die
+Regressionsmodelle ein — dort bleibt es bei Hessen.
 """
         )
 
